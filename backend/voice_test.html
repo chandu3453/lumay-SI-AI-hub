@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LuMay Voice Pipeline Test</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; padding: 2rem; }
+  .container { max-width: 720px; width: 100%; }
+  h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #38bdf8; }
+  .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid #334155; }
+  .card h2 { font-size: 1rem; margin-bottom: 1rem; color: #94a3b8; }
+  .row { display: flex; gap: 0.75rem; margin-bottom: 0.75rem; align-items: center; flex-wrap: wrap; }
+  .row label { min-width: 100px; font-size: 0.875rem; color: #94a3b8; }
+  input[type="text"] { flex: 1; padding: 0.5rem 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 0.875rem; }
+  input[type="text"]:focus { outline: none; border-color: #38bdf8; }
+  button { padding: 0.5rem 1.25rem; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: #38bdf8; color: #0f172a; }
+  .btn-danger { background: #ef4444; color: #fff; }
+  .btn-secondary { background: #334155; color: #e2e8f0; }
+  .status { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+  .status-connecting { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b40; }
+  .status-connected { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e40; }
+  .status-error { background: #ef444420; color: #ef4444; border: 1px solid #ef444440; }
+  .status-ended { background: #64748b20; color: #64748b; border: 1px solid #64748b40; }
+  .status-timeout { background: #f9731620; color: #f97316; border: 1px solid #f9731640; }
+  .log { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 0.75rem; height: 240px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.75rem; line-height: 1.5; margin-top: 0.75rem; }
+  .log .info { color: #94a3b8; }
+  .log .warn { color: #f59e0b; }
+  .log .error { color: #ef4444; }
+  .log .success { color: #22c55e; }
+  .log .transcript { color: #38bdf8; }
+  .badge { display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; background: #334155; margin-right: 0.25rem; }
+  .mic-indicator { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; }
+  .mic-dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+  .mic-dot.active { background: #22c55e; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .poll-section { display: flex; gap: 0.5rem; align-items: center; }
+  .import-error { display: none; background: #7f1d1d; border: 1px solid #ef4444; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; color: #fecaca; font-size: 0.875rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>LuMay Voice Pipeline Test</h1>
+
+  <div class="import-error" id="importError">
+    <strong>Module import failed.</strong>
+    <p id="importErrorDetail">Check browser console for details.</p>
+    <p style="margin-top:0.5rem;font-size:0.8rem">Make sure you are accessing via <code>http://localhost:8001/voice-test</code> (not <code>file://</code>).</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label>Customer Ref</label>
+      <input type="text" id="customerRef" value="test-browser" placeholder="e.g. test-user-1">
+    </div>
+    <div class="row">
+      <label>Room Name</label>
+      <input type="text" id="roomName" value="test-room-browser" placeholder="e.g. test-room">
+    </div>
+    <div class="row">
+      <label>API URL</label>
+      <input type="text" id="apiUrl" value="http://localhost:8001/api/v1" placeholder="http://localhost:8001/api/v1">
+    </div>
+    <div class="row">
+      <span class="status status-connecting" id="sessionStatusBadge">idle</span>
+      <span class="mic-indicator"><span class="mic-dot" id="micDot"></span><span id="micLabel">Mic off</span></span>
+      <span style="flex:1"></span>
+      <button class="btn-primary" id="btnStart">Start Session</button>
+      <button class="btn-danger" id="btnEnd" disabled>End Session</button>
+    </div>
+  </div>
+
+  <div class="card" id="sessionInfoCard" style="display:none">
+    <div class="row"><label>Session ID</label><span id="displaySessionId" style="font-family:monospace"></span></div>
+    <div class="row"><label>Room</label><span id="displayRoom"></span></div>
+    <div class="row"><label>LiveKit URL</label><span id="displayLkUrl" style="font-family:monospace;font-size:0.8rem"></span></div>
+    <div class="row poll-section">
+      <label>Poll status</label>
+      <span id="pollStatusDisplay">-</span>
+      <span style="flex:1"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Transcript</h2>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script src="/static/livekit-client.umd.min.js"></script>
+<script>
+const { Room, RoomEvent, Track } = window.LivekitClient;
+
+let room = null;
+let sessionId = null;
+let pollTimer = null;
+let seenSegments = 0;
+
+function log(type, msg) {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = type;
+  const time = new Date().toLocaleTimeString();
+  line.innerHTML = `<span style="color:#64748b">[${time}]</span> ${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(s) {
+  const badge = document.getElementById('sessionStatusBadge');
+  badge.className = 'status status-' + s;
+  badge.textContent = s;
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+function startPolling(sid, apiUrl) {
+  let count = 0;
+  pollTimer = setInterval(async () => {
+    try {
+      const resp = await fetch(apiUrl + '/voice/sessions/' + sid, { cache: 'no-store' });
+      const data = await resp.json();
+      if (data.success) {
+        const s = data.data;
+        document.getElementById('pollStatusDisplay').innerHTML =
+          `<span class="status status-${s.status}">${s.status}</span> (${++count})`;
+        setStatus(s.status);
+        if (s.transcript_segments && s.transcript_segments.length > seenSegments) {
+          for (let i = seenSegments; i < s.transcript_segments.length; i++) {
+            const seg = s.transcript_segments[i];
+            log('transcript', `<span class="badge">${seg.role}</span> ${seg.text}`);
+          }
+          seenSegments = s.transcript_segments.length;
+        }
+        if (['ended', 'error', 'timeout'].includes(s.status)) {
+          stopPolling();
+          document.getElementById('btnStart').disabled = false;
+          document.getElementById('btnEnd').disabled = true;
+        }
+      }
+    } catch (err) {
+      log('warn', `Poll error: ${err.message}`);
+    }
+  }, 2000);
+}
+
+async function leaveRoom() {
+  if (room) {
+    try { await room.localParticipant.setMicrophoneEnabled(false); } catch {}
+    room.disconnect();
+    room = null;
+  }
+  document.getElementById('micDot').classList.remove('active');
+  document.getElementById('micLabel').textContent = 'Mic off';
+}
+
+async function startSession() {
+  const btn = document.getElementById('btnStart');
+  const apiUrl = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  const customerRef = document.getElementById('customerRef').value || 'test-browser';
+  const roomName = document.getElementById('roomName').value || 'test-room-' + Date.now();
+
+  btn.disabled = true;
+  seenSegments = 0;
+  log('info', 'Starting session...');
+
+  try {
+    const resp = await fetch(apiUrl + '/voice/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_ref: customerRef, room_name: roomName })
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.detail || 'Start failed');
+
+    const info = data.data;
+    sessionId = info.session_id;
+    document.getElementById('displaySessionId').textContent = sessionId;
+    document.getElementById('displayRoom').textContent = info.room_name;
+    document.getElementById('displayLkUrl').textContent = info.livekit_url;
+    document.getElementById('sessionInfoCard').style.display = 'block';
+    setStatus('connecting');
+    log('success', 'Session: ' + sessionId);
+
+    document.getElementById('btnEnd').disabled = false;
+    startPolling(sessionId, apiUrl);
+
+    room = new Room();
+
+    room.on(RoomEvent.Connected, () => {
+      log('success', 'Connected to LiveKit room');
+    });
+
+    room.on(RoomEvent.Disconnected, (reason) => {
+      log('warn', 'Disconnected: ' + reason);
+      setStatus('ended');
+    });
+
+    room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      log('success', `Agent track received from ${participant.identity} (kind: ${track.kind})`);
+      if (track.kind === 'audio') {
+        const audio = new Audio();
+        audio.srcObject = new MediaStream([track.mediaStreamTrack]);
+        audio.volume = 1.0;
+        audio.muted = false;
+        audio.setAttribute('playsinline', '');
+        audio.play().catch(e => log('warn', 'Audio play: ' + e.message));
+        log('info', 'Agent audio element created');
+      }
+    });
+
+    room.on(RoomEvent.ParticipantConnected, (participant) => {
+      log('info', 'Agent joined: ' + participant.identity);
+    });
+
+    log('info', 'Joining room ' + roomName + '...');
+    await room.connect(info.livekit_url, info.participant_token);
+    log('success', 'Room joined');
+
+    await room.localParticipant.setMicrophoneEnabled(true);
+    document.getElementById('micDot').classList.add('active');
+    document.getElementById('micLabel').textContent = 'Mic active';
+    log('success', 'Microphone published to room');
+
+  } catch (err) {
+    log('error', 'Error: ' + err.message);
+    setStatus('error');
+    btn.disabled = false;
+    document.getElementById('btnEnd').disabled = true;
+  }
+}
+
+async function endSession() {
+  if (!sessionId) return;
+  const apiUrl = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  stopPolling();
+  try {
+    await fetch(apiUrl + '/voice/end', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId })
+    });
+    log('info', 'Session end requested');
+  } catch (err) {
+    log('warn', 'End request: ' + err.message);
+  }
+  await leaveRoom();
+  setStatus('ended');
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnEnd').disabled = true;
+}
+
+document.getElementById('btnStart').addEventListener('click', startSession);
+document.getElementById('btnEnd').addEventListener('click', endSession);
+
+window.addEventListener('beforeunload', () => {
+  stopPolling();
+});
+</script>
+</body>
+</html>

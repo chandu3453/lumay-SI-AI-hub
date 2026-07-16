@@ -1,0 +1,85 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Every Monday at 06:00 UTC
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "requirements*.txt"
+      - "package.json"
+
+jobs:
+  backend:
+    name: Backend Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          uv venv
+          uv pip install -e ".[dev]"
+
+      - name: Bandit SAST
+        run: |
+          cd backend
+          uv run bandit -r app/ domains/ ai/ platform/ -f json -o bandit-report.json || true
+
+      - name: Safety check
+        run: |
+          cd backend
+          uv run safety check --full-report || true
+
+  frontend:
+    name: Frontend Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: cd frontend && pnpm install --frozen-lockfile
+
+      - name: npm audit
+        run: cd frontend && pnpm audit --audit-level=high || true
+
+  trivy:
+    name: Trivy (IaC & Secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif

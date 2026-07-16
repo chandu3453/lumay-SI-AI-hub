@@ -1,0 +1,52 @@
+# OpenSearch Configuration — lumay-si-ai-hub
+
+cluster.name: lumay-opensearch
+node.name: lumay-opensearch-node1
+path.data: /usr/share/opensearch/data
+path.logs: /usr/share/opensearch/logs
+network.host: 0.0.0.0
+http.port: 9200
+discovery.type: single-node
+
+# Security
+plugins.security.disabled: false
+plugins.security.ssl.http.enabled: true
+plugins.security.ssl.http.pemcert_filepath: /usr/share/opensearch/config/certificates/http.pem
+plugins.security.ssl.http.pemkey_filepath: /usr/share/opensearch/config/certificates/http.key
+plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/opensearch/config/certificates/root-ca.pem
+plugins.security.allow_unsafe_democertificates: false
+plugins.security.allow_default_init_securityindex: false
+plugins.security.authcz.admin_dn:
+  - "CN=admin,OU=Lumay,O=Organization,L=City,ST=State,C=IN"
+plugins.security.nodes_dn:
+  - "CN=opensearch,OU=Lumay,O=Organization,L=City,ST=State,C=IN"
+plugins.security.audit.type: internal_opensearch
+plugins.security.enable_snapshot_restore_privilege: true
+plugins.security.check_snapshot_restore_write_privileges: true
+plugins.security.restapi.roles_enabled:
+  - "all_access"
+  - "security_rest_api_access"
+
+# JVM heap (set via OPENSEARCH_JAVA_OPTS env var)
+
+# Index management
+indices.fielddata.cache.size: 20%
+indices.memory.index_buffer_size: 10%
+indices.query.bool.max_clause_count: 8192
+search.max_buckets: 20000
+
+# Circuit breakers
+indices.breaker.fielddata.limit: 40%
+indices.breaker.request.limit: 60%
+indices.breaker.total.limit: 70%
+
+# Recovery
+cluster.routing.allocation.node_concurrent_recoveries: 2
+cluster.routing.allocation.node_initial_primaries_recoveries: 4
+indices.recovery.max_bytes_per_sec: 40mb
+
+# Thread pools
+thread_pool.search.size: 8
+thread_pool.search.queue_size: 1000
+thread_pool.write.size: 4
+thread_pool.write.queue_size: 500

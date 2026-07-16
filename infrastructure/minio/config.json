@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "credential": {
+    "accessKey": "",
+    "secretKey": ""
+  },
+  "region": "us-east-1",
+  "browser": "on",
+  "logger": {
+    "console": {
+      "enabled": true,
+      "level": "info"
+    }
+  },
+  "notify": {
+    "amqp": {
+      "1": {
+        "enable": false,
+        "url": "",
+        "exchange": "",
+        "routingKey": "",
+        "exchangeType": "",
+        "deliveryMode": 0,
+        "mandatory": false,
+        "immediate": false,
+        "durable": false,
+        "internal": false,
+        "noWait": false,
+        "autoDeleted": false
+      }
+    }
+  }
+}

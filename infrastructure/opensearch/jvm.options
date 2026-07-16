@@ -1,0 +1,11 @@
+# OpenSearch JVM Options — lumay-si-ai-hub
+
+-Xms512m
+-Xmx512m
+-XX:+UseG1GC
+-XX:G1ReservePercent=25
+-XX:InitiatingHeapOccupancyPercent=30
+-XX:+DisableExplicitGC
+-XX:+AlwaysPreTouch
+-Dlog4j2.formatMsgNoLookups=true
+-Djdk.tls.ephemeralDHKeySize=2048

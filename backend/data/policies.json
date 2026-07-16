@@ -1,0 +1,52 @@
+[
+  {
+    "id": "POL-001",
+    "title": "Standard Auto Insurance Policy",
+    "type": "auto",
+    "summary": "Comprehensive coverage for personal vehicles including liability, collision, and comprehensive protection.",
+    "coverage_details": "Liability up to $300,000, Collision deductible $500, Comprehensive deductible $250, Rental car coverage $50/day up to 30 days",
+    "exclusions": "Intentional damage, racing, wear and tear, commercial use",
+    "claim_process": "Report within 24 hours via phone or web form. Provide police report for accidents over $1,000. Adjuster assigned within 48 hours.",
+    "tags": ["auto", "standard", "personal"]
+  },
+  {
+    "id": "POL-002",
+    "title": "Premium Home Insurance",
+    "type": "home",
+    "summary": "Comprehensive homeowners insurance covering dwelling, personal property, and liability.",
+    "coverage_details": "Dwelling coverage up to $500,000, Personal property up to $250,000, Liability up to $1,000,000, Additional living expenses up to $100,000",
+    "exclusions": "Flood damage, earthquake, normal wear and tear, pest infestations",
+    "claim_process": "Document damage with photos. Submit claim online within 30 days. Inspector assigned within 72 hours.",
+    "tags": ["home", "premium", "comprehensive"]
+  },
+  {
+    "id": "POL-003",
+    "title": "Business Liability Insurance",
+    "type": "business",
+    "summary": "General liability protection for small to medium businesses against third-party claims.",
+    "coverage_details": "General liability $2,000,000 per occurrence, Products liability $2,000,000, Medical payments $10,000, Defense costs outside limits",
+    "exclusions": "Employee injuries (covered by workers comp), professional errors, intentional acts, pollution",
+    "claim_process": "Notify within 30 days of incident. Provide all relevant documentation. Legal defense provided.",
+    "tags": ["business", "liability", "commercial"]
+  },
+  {
+    "id": "POL-004",
+    "title": "Health Insurance Basic Plan",
+    "type": "health",
+    "summary": "Essential health coverage with preventive care, emergency services, and prescription drugs.",
+    "coverage_details": "Annual deductible $2,000, Coinsurance 80/20, Out-of-pocket max $6,000, Preventive care 100% covered, Emergency room $500 copay",
+    "exclusions": "Cosmetic surgery, experimental treatments, dental/vision (separate plan)",
+    "claim_process": "Use in-network providers. Pre-authorization required for specialist visits. Claims filed electronically.",
+    "tags": ["health", "basic", "individual"]
+  },
+  {
+    "id": "POL-005",
+    "title": "Life Insurance Term Plan",
+    "type": "life",
+    "summary": "Affordable term life insurance with coverage from 10 to 30 years.",
+    "coverage_details": "Coverage amounts from $100,000 to $5,000,000, Level premiums for term duration, Convertible to permanent policy, Accelerated death benefit included",
+    "exclusions": "Suicide within first 2 years, fraud, hazardous activities",
+    "claim_process": "Submit death certificate and claim form. Beneficiary paid within 30 days of approved claim.",
+    "tags": ["life", "term", "protection"]
+  }
+]

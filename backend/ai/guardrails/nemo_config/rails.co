@@ -1,0 +1,13 @@
+# NeMo Guardrails — Colang rail definitions
+
+define user ask off topic
+  "What is the weather?"
+  "Tell me a joke"
+  "Who won the game?"
+
+define bot refuse off topic
+  "I'm only able to assist with insurance-related queries. How can I help you with your complaint or policy?"
+
+define flow off topic check
+  user ask off topic
+  bot refuse off topic

@@ -1,0 +1,1 @@
+﻿"""Search domain Pydantic schemas."""

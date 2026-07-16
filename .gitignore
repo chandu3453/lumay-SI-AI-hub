@@ -1,0 +1,148 @@
+# ==================================================
+# lumay-si-ai-hub .gitignore
+# ==================================================
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution
+.eggs/
+*.dist-info/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# ---- Node / Frontend ----
+node_modules/
+.npm
+.next/
+out/
+.cache/
+*.tsbuildinfo
+next-env.d.ts
+
+# Build artifacts
+frontend/dist/
+frontend/build/
+
+# ---- Environment & Secrets ----
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+
+# ---- Docker ----
+*.override.yml
+
+# ---- IDEs ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# ---- Logs ----
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ---- Database ----
+*.db
+*.sqlite
+*.sqlite3
+
+# ---- Alembic ----
+# Keep versions tracked, ignore generated migration artifacts if needed
+# backend/alembic/versions/*.pyc
+
+# ---- Testing ----
+.pytest_cache/
+htmlcov/
+.coverage
+
+# ---- Jupyter ----
+.ipynb_checkpoints
+*.ipynb
+
+# ---- OS ----
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ---- JetBrains IDEs ----
+.idea/
+*.iml
+
+# ---- Markdown ----
+.markdownlint.json
+
+# ---- Scripts ----
+bin/
+
+# ---- AI artifacts ----
+.ai_cache/
+.tiktoken_cache/

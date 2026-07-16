@@ -1,0 +1,47 @@
+[
+  {
+    "id": "PROD-001",
+    "name": "Auto Shield",
+    "type": "auto",
+    "description": "Complete auto insurance with accident forgiveness and roadside assistance.",
+    "features": ["Accident forgiveness", "24/7 roadside assistance", "Rental car coverage", "Glass repair $0 deductible", "New car replacement"],
+    "monthly_premium": "$85-$150",
+    "tags": ["auto", "comprehensive", "popular"]
+  },
+  {
+    "id": "PROD-002",
+    "name": "Home Protect Plus",
+    "type": "home",
+    "description": "Premium home insurance with guaranteed replacement cost and identity theft protection.",
+    "features": ["Guaranteed replacement cost", "Identity theft coverage $25,000", "Water backup coverage", "Equipment breakdown", "Service line coverage"],
+    "monthly_premium": "$120-$200",
+    "tags": ["home", "premium", "protection"]
+  },
+  {
+    "id": "PROD-003",
+    "name": "Business Guard",
+    "type": "business",
+    "description": "Comprehensive business insurance package for small to medium enterprises.",
+    "features": ["General liability $2M", "Property coverage", "Business interruption", "Cyber liability $500K", "Employment practices liability"],
+    "monthly_premium": "$200-$500",
+    "tags": ["business", "commercial", "comprehensive"]
+  },
+  {
+    "id": "PROD-004",
+    "name": "Health Essentials",
+    "type": "health",
+    "description": "Essential health coverage with nationwide network access.",
+    "features": ["Preventive care 100%", "Nationwide PPO network", "Prescription drug coverage", "Telehealth included", "Wellness rewards program"],
+    "monthly_premium": "$350-$600",
+    "tags": ["health", "essential", "ppo"]
+  },
+  {
+    "id": "PROD-005",
+    "name": "LifeSecure Term",
+    "type": "life",
+    "description": "Affordable term life insurance with flexible coverage options.",
+    "features": ["Level premiums for 10-30 years", "Convertible to permanent", "Accelerated death benefit", "Waiver of premium", "Child term rider available"],
+    "monthly_premium": "$25-$100",
+    "tags": ["life", "term", "affordable"]
+  }
+]

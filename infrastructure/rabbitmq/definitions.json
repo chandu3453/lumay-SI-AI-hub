@@ -1,0 +1,43 @@
+{
+  "rabbit_version": "3.13",
+  "rabbitmq_version": "3.13",
+  "users": [],
+  "vhosts": [
+    {"name": "/"}
+  ],
+  "permissions": [],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [
+    {"name": "cluster_name", "value": "lumay-rabbitmq"}
+  ],
+  "policies": [
+    {
+      "vhost": "/",
+      "name": "lumay-retry",
+      "pattern": "lumay\\.(.*)\\.retry",
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "",
+        "dead-letter-routing-key": "lumay.${1}.dlq",
+        "message-ttl": 60000
+      },
+      "priority": 0
+    },
+    {
+      "vhost": "/",
+      "name": "lumay-dlq",
+      "pattern": "lumay\\.(.*)\\.dlq",
+      "apply-to": "queues",
+      "definition": {
+        "message-ttl": 300000,
+        "dead-letter-exchange": "",
+        "dead-letter-routing-key": "lumay.${1}.retry"
+      },
+      "priority": 0
+    }
+  ],
+  "queues": [],
+  "exchanges": [],
+  "bindings": []
+}

@@ -1,0 +1,82 @@
+[
+  {
+    "scenario": "Scenario 1: Motor claim delayed",
+    "message": "My motor claim has been delayed.",
+    "channel": "web_form",
+    "interaction_id": "4457b312-3c0b-4cf4-b1fa-8993c20742f5",
+    "answer": "Hello, welcome to LuMay Insurance. I'm the LuMay AI Assistant. I can help you with that. Could you please provide me with your claim number?",
+    "complaint_id": null,
+    "workflow_id": null,
+    "notification_ids": [],
+    "ai_analysis": {
+      "sentiment": "",
+      "severity": "",
+      "confidence": 1.0,
+      "primary_theme": ""
+    }
+  },
+  {
+    "scenario": "Scenario 2: Refund request",
+    "message": "I need premium refund.",
+    "channel": "email",
+    "interaction_id": "3d686a80-42c6-4df6-9715-2f5a28cee563",
+    "answer": "Hello, welcome to LuMay Insurance. I'm the LuMay AI Assistant. I can help you with that. Could you please provide your policy number?",
+    "complaint_id": null,
+    "workflow_id": null,
+    "notification_ids": [],
+    "ai_analysis": {
+      "sentiment": "",
+      "severity": "",
+      "confidence": 1.0,
+      "primary_theme": ""
+    }
+  },
+  {
+    "scenario": "Scenario 3: Travel policy renewal",
+    "message": "I want to renew my travel policy.",
+    "channel": "whatsapp",
+    "interaction_id": "75a6a748-76d2-42e9-8281-d6dfc7dbf6f1",
+    "answer": "Hello, welcome to LuMay Insurance. I'm the LuMay AI Assistant. I can help you with that. Could you please provide me with your current policy number?",
+    "complaint_id": null,
+    "workflow_id": null,
+    "notification_ids": [],
+    "ai_analysis": {
+      "sentiment": "",
+      "severity": "",
+      "confidence": 1.0,
+      "primary_theme": ""
+    }
+  },
+  {
+    "scenario": "Scenario 4: Medical reimbursement",
+    "message": "My medical reimbursement hasn't arrived.",
+    "channel": "voice",
+    "interaction_id": "b1a6e8fa-a87a-4fe3-a2a0-18aa57481900",
+    "answer": "Hello, welcome to LuMay Insurance. I'm the LuMay AI Assistant. I can help you with that. Could you please provide me with your claim number?",
+    "complaint_id": null,
+    "workflow_id": null,
+    "notification_ids": [],
+    "ai_analysis": {
+      "sentiment": "",
+      "severity": "",
+      "confidence": 1.0,
+      "primary_theme": ""
+    }
+  },
+  {
+    "scenario": "Scenario 5: Bad repair quality",
+    "message": "The garage repaired my car badly.",
+    "channel": "web_form",
+    "interaction_id": "ac08ca1a-4b6d-44ca-95c3-6e27732ebc4a",
+    "answer": "Hello, welcome to LuMay Insurance. I'm the LuMay AI Assistant. I understand that you're facing an issue with the quality of service from the garage. To help you log this complaint, could you please provide your policy number?",
+    "complaint_id": null,
+    "workflow_id": null,
+    "notification_ids": [],
+    "ai_analysis": {
+      "sentiment": "",
+      "severity": "",
+      "confidence": 1.0,
+      "primary_theme": ""
+    }
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "FAQ-001",
+    "question": "How do I file a new insurance claim?",
+    "answer": "You can file a claim through our web portal, mobile app, or by calling our claims hotline at 1-800-555-CLAIM. You'll need your policy number and details about the incident. Most claims can be submitted in under 10 minutes.",
+    "category": "claims",
+    "tags": ["claims", "filing", "new claim"]
+  },
+  {
+    "id": "FAQ-002",
+    "question": "How long does it take to process a claim?",
+    "answer": "Simple claims are typically processed within 5-7 business days. Complex claims requiring investigation may take 15-30 days. You can track your claim status through our online portal at any time.",
+    "category": "claims",
+    "tags": ["claims", "processing", "timeline"]
+  },
+  {
+    "id": "FAQ-003",
+    "question": "What information do I need to provide when filing a complaint?",
+    "answer": "When filing a complaint, please provide your policy number, a detailed description of the issue, any relevant documentation (photos, emails, letters), and your preferred resolution. This helps us investigate and resolve your complaint efficiently.",
+    "category": "complaints",
+    "tags": ["complaints", "filing", "information"]
+  },
+  {
+    "id": "FAQ-004",
+    "question": "How can I update my personal information?",
+    "answer": "You can update your personal information by logging into your account on our web portal. Changes to name, address, phone number, and email can be made instantly. Changes to beneficiaries or coverage may require additional verification.",
+    "category": "account",
+    "tags": ["account", "update", "profile"]
+  },
+  {
+    "id": "FAQ-005",
+    "question": "What payment methods do you accept?",
+    "answer": "We accept major credit cards (Visa, Mastercard, American Express), direct bank transfers (ACH), electronic checks, and automatic monthly deductions. You can set up autopay through your online account for a 5% discount.",
+    "category": "billing",
+    "tags": ["billing", "payment", "methods"]
+  },
+  {
+    "id": "FAQ-006",
+    "question": "How do I cancel my policy?",
+    "answer": "To cancel your policy, please contact our customer service team at 1-800-555-SERV or submit a cancellation request through your online account. Depending on your policy type and payment schedule, you may receive a prorated refund.",
+    "category": "policy",
+    "tags": ["policy", "cancellation", "refund"]
+  },
+  {
+    "id": "FAQ-007",
+    "question": "What is the difference between comprehensive and collision coverage?",
+    "answer": "Collision coverage pays for damage to your vehicle from accidents involving other vehicles or objects. Comprehensive coverage pays for damage from non-collision events like theft, vandalism, weather damage, or hitting an animal. Both are optional for older vehicles.",
+    "category": "auto",
+    "tags": ["auto", "coverage", "comprehensive", "collision"]
+  },
+  {
+    "id": "FAQ-008",
+    "question": "How is my premium calculated?",
+    "answer": "Your premium is calculated based on several factors including: your age, driving record, credit score, location, type of coverage, deductible amounts, and the value of insured assets. Safe drivers with good credit typically receive the best rates.",
+    "category": "billing",
+    "tags": ["billing", "premium", "rates"]
+  },
+  {
+    "id": "FAQ-009",
+    "question": "Does insurance cover natural disasters?",
+    "answer": "Coverage depends on your policy type and location. Standard homeowners policies typically cover wind, hail, fire, and lightning. Flood and earthquake coverage require separate policies. Check your policy documents or contact us to confirm your specific coverage.",
+    "category": "coverage",
+    "tags": ["coverage", "natural disasters", "flood", "earthquake"]
+  },
+  {
+    "id": "FAQ-010",
+    "question": "How do I add a new driver to my auto policy?",
+    "answer": "You can add a new driver through your online account or by calling our customer service. You'll need the driver's full name, date of birth, driver's license number, and their driving history. Adding a driver may affect your premium.",
+    "category": "auto",
+    "tags": ["auto", "drivers", "add driver"]
+  }
+]
