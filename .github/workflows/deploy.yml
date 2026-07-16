@@ -109,7 +109,7 @@ jobs:
           curl -f --retry 5 --retry-delay 10 https://lumay-si.ai/health || exit 1
 
       - name: Notify
-        uses: slackapi/slack-github-action@v2
+        uses: slackapi/slack-github-action@v4
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK }}
           webhook-type: incoming-webhook
