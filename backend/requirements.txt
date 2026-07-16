@@ -44,7 +44,7 @@ distlib==0.4.3
 distro==1.9.0
 dnspython==2.8.0
 docopt==0.6.2
-docstring_parser==0.16
+docstring_parser==0.18.0
 ecdsa==0.19.2
 email_validator==2.2.0
 Events==0.5
