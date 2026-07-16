@@ -143,6 +143,9 @@ desktop.ini
 # ---- Scripts ----
 bin/
 
+# ---- Env setup scripts (contain secrets) ----
+backend/update_env.py
+
 # ---- AI artifacts ----
 .ai_cache/
 .tiktoken_cache/
