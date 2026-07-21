@@ -162,7 +162,7 @@ requests-toolbelt==1.0.0
 resampy==0.4.3
 rich==13.9.4
 rsa==4.9.1
-ruff==0.8.4
+ruff==0.15.21
 scipy==1.18.0
 setuptools==83.0.0
 shellingham==1.5.4
