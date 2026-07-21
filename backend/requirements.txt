@@ -175,7 +175,7 @@ spacy-legacy==3.0.12
 spacy-loggers==1.0.5
 SQLAlchemy==2.0.36
 srsly==2.5.3
-sse-starlette==2.2.1
+sse-starlette==3.4.6
 starlette==0.41.3
 structlog==24.4.0
 sympy==1.14.0
