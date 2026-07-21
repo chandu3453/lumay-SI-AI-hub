@@ -119,7 +119,7 @@ opentelemetry-proto==1.28.2
 opentelemetry-sdk==1.28.2
 opentelemetry-semantic-conventions==0.49b2
 opentelemetry-util-http==0.49b2
-orjson==3.10.12
+orjson==3.11.9
 ormsgpack==1.12.2
 packaging==24.2
 pamqp==3.3.0
