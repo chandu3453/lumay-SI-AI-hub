@@ -16,10 +16,12 @@ import {
   Radio,
   FolderKanban,
   Building2,
+  Sparkles,
 } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { ROUTES } from "@/lib/constants";
+import { useAuthStore } from "@/stores/auth.store";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: ROUTES.DASHBOARD, icon: <LayoutDashboard className="h-4.5 w-4.5" /> },
@@ -29,6 +31,7 @@ const NAV_ITEMS = [
   { label: "Workflows", href: ROUTES.WORKFLOW, icon: <GitBranch className="h-4.5 w-4.5" /> },
   { label: "Live Alerts", href: ROUTES.LIVE_ALERTS, icon: <Radio className="h-4.5 w-4.5" /> },
   { label: "Analytics", href: ROUTES.ANALYTICS, icon: <BarChart3 className="h-4.5 w-4.5" /> },
+  { label: "Enterprise Analytics", href: ROUTES.ENTERPRISE_ANALYTICS, icon: <Sparkles className="h-4.5 w-4.5" /> },
   { label: "Reports", href: ROUTES.REPORTS, icon: <FileText className="h-4.5 w-4.5" /> },
   { label: "Notifications", href: ROUTES.NOTIFICATIONS, icon: <Bell className="h-4.5 w-4.5" /> },
   { label: "Administration", href: ROUTES.ADMINISTRATION, icon: <Building2 className="h-4.5 w-4.5" /> },
@@ -37,6 +40,16 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const user = useAuthStore((s) => s.user);
+  const displayName = user?.full_name || "Employee";
+  const initials = user?.full_name
+    ? user.full_name
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("")
+    : "E";
 
   return (
     <aside className="hidden lg:flex w-64 flex-col border-r border-[#E2E8F0] bg-white shrink-0">
@@ -69,11 +82,11 @@ export function Sidebar() {
         <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-[#F8FAFC] p-3 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-[#0052FF] text-xs font-bold">
-              AA
+              {initials}
             </div>
             <div className="flex flex-col text-left">
-              <span className="text-xs font-bold text-[#0F172A]">Ahmed Al Badi</span>
-              <span className="text-[10px] font-semibold text-slate-400">Complaint Officer</span>
+              <span className="text-xs font-bold text-[#0F172A]">{displayName}</span>
+              <span className="text-[10px] font-semibold text-slate-400">—</span>
             </div>
           </div>
           <ChevronDown className="h-3.5 w-3.5 text-[#94A3B8]" />

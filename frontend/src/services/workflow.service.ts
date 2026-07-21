@@ -24,4 +24,20 @@ export const workflowService = {
   async getById(id: string) {
     return api.get(`/workflows/${id}`);
   },
+
+  async assign(id: string, agentId: string, team?: string) {
+    return api.post(`/workflows/${id}/assign`, { agent_id: agentId, team });
+  },
+
+  async escalate(id: string, reason?: string) {
+    return api.post(`/workflows/${id}/escalate`, reason ? { reason } : undefined);
+  },
+
+  async complete(id: string) {
+    return api.post(`/workflows/${id}/complete`);
+  },
+
+  async archive(id: string) {
+    return api.post(`/workflows/${id}/archive`);
+  },
 };

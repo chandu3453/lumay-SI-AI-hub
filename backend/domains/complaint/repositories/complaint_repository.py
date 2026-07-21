@@ -50,6 +50,7 @@ class ComplaintRepository(BaseRepository[Complaint]):
     async def list(
         self,
         *,
+        customer_id: uuid.UUID | None = None,
         status: ComplaintStatus | None = None,
         category: ComplaintCategory | None = None,
         priority: ComplaintPriority | None = None,
@@ -70,6 +71,9 @@ class ComplaintRepository(BaseRepository[Complaint]):
         count_query = select(func.count(Complaint.id))
 
         # Core filters
+        if customer_id is not None:
+            query = query.where(Complaint.customer_id == customer_id)
+            count_query = count_query.where(Complaint.customer_id == customer_id)
         if status is not None:
             query = query.where(Complaint.status == status)
             count_query = count_query.where(Complaint.status == status)
@@ -187,3 +191,94 @@ class ComplaintRepository(BaseRepository[Complaint]):
         query = query.order_by(Complaint.created_at.desc()).limit(limit)
         result = await self._session.execute(query)
         return result.scalars().all()
+
+    # ── Sprint 29 — Reporting aggregates ──────────────────────────────────
+
+    def _apply_reporting_filters(
+        self,
+        query,
+        *,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        category: ComplaintCategory | None = None,
+        priority: ComplaintPriority | None = None,
+    ):
+        if date_from is not None:
+            query = query.where(Complaint.created_at >= date_from)
+        if date_to is not None:
+            query = query.where(Complaint.created_at <= date_to)
+        if category is not None:
+            query = query.where(Complaint.category == category)
+        if priority is not None:
+            query = query.where(Complaint.priority == priority)
+        return query
+
+    async def list_created_dates(
+        self, *, date_from: datetime | None = None, date_to: datetime | None = None
+    ) -> Sequence[datetime]:
+        """Just the timestamps — backs the Complaint Trend chart's
+        time-bucketing without pulling full rows."""
+        query = self._apply_reporting_filters(
+            select(Complaint.created_at), date_from=date_from, date_to=date_to
+        )
+        result = await self._session.execute(query)
+        return [row[0] for row in result.all()]
+
+    async def count_by_status(self, **filters) -> dict[str, int]:
+        query = self._apply_reporting_filters(
+            select(Complaint.status, func.count(Complaint.id)), **filters
+        ).group_by(Complaint.status)
+        result = await self._session.execute(query)
+        return {str(status): count for status, count in result.all()}
+
+    async def count_by_category(self, **filters) -> dict[str, int]:
+        query = self._apply_reporting_filters(
+            select(Complaint.category, func.count(Complaint.id)), **filters
+        ).group_by(Complaint.category)
+        result = await self._session.execute(query)
+        return {str(category): count for category, count in result.all()}
+
+    async def count_by_severity(self, **filters) -> dict[str, int]:
+        query = self._apply_reporting_filters(
+            select(Complaint.severity, func.count(Complaint.id)), **filters
+        ).group_by(Complaint.severity)
+        result = await self._session.execute(query)
+        return {str(severity): count for severity, count in result.all()}
+
+    async def avg_resolution_seconds(self, **filters) -> float | None:
+        query = self._apply_reporting_filters(
+            select(Complaint.created_at, Complaint.updated_at).where(
+                Complaint.status.in_(
+                    [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.ARCHIVED]
+                )
+            ),
+            **filters,
+        )
+        result = await self._session.execute(query)
+        rows = result.all()
+        if not rows:
+            return None
+        durations = [(updated - created).total_seconds() for created, updated in rows]
+        return sum(durations) / len(durations)
+
+    async def count_open_by_customer(self, customer_id: uuid.UUID) -> int:
+        query = select(func.count(Complaint.id)).where(
+            Complaint.customer_id == customer_id,
+            Complaint.status.not_in(
+                [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.ARCHIVED]
+            ),
+        )
+        result = await self._session.execute(query)
+        return result.scalar_one()
+
+    async def count_high_priority_open(self) -> int:
+        """Supervisor Dashboard's "High Priority Complaints" — open complaints
+        at high/critical priority, right now, no date filter."""
+        query = select(func.count(Complaint.id)).where(
+            Complaint.priority.in_([ComplaintPriority.HIGH, ComplaintPriority.CRITICAL]),
+            Complaint.status.not_in(
+                [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.ARCHIVED]
+            ),
+        )
+        result = await self._session.execute(query)
+        return result.scalar_one()

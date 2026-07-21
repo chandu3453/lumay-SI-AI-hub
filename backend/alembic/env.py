@@ -50,6 +50,14 @@ try:
     from domains.notification.models.notification import Notification  # noqa: E402, F401
 except ImportError:
     pass
+try:
+    from domains.conversation.models.conversation import Conversation  # noqa: E402, F401
+    from domains.conversation.models.conversation_message import ConversationMessage  # noqa: E402, F401
+    from domains.conversation.models.conversation_participant import ConversationParticipant  # noqa: E402, F401
+    from domains.conversation.models.conversation_channel import ConversationChannelLink  # noqa: E402, F401
+    from domains.conversation.models.conversation_event import ConversationEvent  # noqa: E402, F401
+except ImportError:
+    pass
 # Domain models — uncomment as they are implemented:
 # from domains.analytics.models.report import Report  # noqa: E402, F401
 # from domains.search.models.document import SearchDocument  # noqa: E402, F401

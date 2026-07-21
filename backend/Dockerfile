@@ -25,6 +25,12 @@ FROM base AS dependencies
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# instructor's declared jiter<0.7 metadata conflicts with openai's own jiter
+# requirement in a single resolve, even though these pinned versions work
+# together at runtime (see requirements.txt) — installed separately,
+# skipping dependency resolution, since its actual deps (openai, pydantic,
+# jiter) are already satisfied by the install above.
+RUN pip install --no-cache-dir --no-deps instructor==1.7.0
 
 # ---- Development Stage ----
 FROM dependencies AS development

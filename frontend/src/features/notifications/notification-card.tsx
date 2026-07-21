@@ -21,7 +21,6 @@ import { cn } from "@/lib/cn";
 import { formatRelative } from "@/lib/formatters";
 import type { NotificationItem } from "./use-notifications";
 import { InsuranceBadge } from "@/components/insurance/InsuranceBadge";
-import { PolicyBadge } from "@/components/insurance/PolicyBadge";
 
 const typeIcons: Record<string, React.ReactNode> = {
   "High Risk Complaint": <AlertTriangle className="h-5 w-5" />,
@@ -141,7 +140,6 @@ export function NotificationCard({ notification: n, onMarkRead }: NotificationCa
             {n.type && (
               <InsuranceBadge line={n.type === "High Risk Complaint" ? "Motor" : n.type === "SLA Breach" ? "Medical & Health" : n.type === "Customer Feedback" ? "Travel" : n.type === "Regulatory Alert" ? "Business Insurance" : n.type === "Case Assigned" ? "Home" : "Policy Servicing"} />
             )}
-            <PolicyBadge policyNumber={`POL-2025-${String(8000 + Math.floor(Math.random() * 1000)).padStart(4, "0")}`} />
           </div>
         </div>
       </div>

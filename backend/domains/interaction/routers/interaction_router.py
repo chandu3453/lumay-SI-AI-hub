@@ -150,6 +150,17 @@ async def start_chat(
         status=InteractionStatus.RECEIVED,
     )
     interaction, _ = await service.create_interaction(data)
+
+    from domains.conversation import integration_hooks as conversation_hooks
+
+    await conversation_hooks.on_interaction_started(
+        service._repository._session,
+        body.customer_ref,
+        body.channel,
+        interaction.id,
+        complaint_id=body.complaint_id,
+    )
+
     return SuccessResponse(data=InteractionResponse.model_validate(interaction))
 
 

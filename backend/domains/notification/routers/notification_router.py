@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.dependencies.auth import CurrentUser, get_current_user
+from app.dependencies.auth import CurrentUser, get_current_active_user, get_current_user
 from app.dependencies.notification import get_notification_service
 from domains.notification.constants.notification_constants import (
     NotificationChannel,
@@ -41,9 +41,14 @@ logger = get_logger(__name__)
 async def create_notification(
     body: NotificationCreate,
     service: NotificationService = Depends(get_notification_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[NotificationResponse]:
     notification, _ = await service.create_notification(body)
+
+    from domains.conversation.integration_hooks import on_notification_recorded
+
+    await on_notification_recorded(service._repository._session, notification)
+
     return SuccessResponse(data=NotificationResponse.model_validate(notification))
 
 
@@ -123,7 +128,7 @@ async def update_notification(
     notification_id: uuid.UUID,
     body: NotificationUpdate,
     service: NotificationService = Depends(get_notification_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[NotificationResponse]:
     notification, _ = await service.update_notification(notification_id, body)
     return SuccessResponse(data=NotificationResponse.model_validate(notification))
@@ -139,7 +144,7 @@ async def queue_notification(
     notification_id: uuid.UUID,
     body: NotificationQueueRequest | None = None,
     service: NotificationService = Depends(get_notification_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[NotificationResponse]:
     notification, _ = await service.queue_notification(
         notification_id, scheduled_at=body.scheduled_at if body else None
@@ -157,7 +162,7 @@ async def send_notification(
     notification_id: uuid.UUID,
     body: NotificationSendRequest | None = None,
     service: NotificationService = Depends(get_notification_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[NotificationResponse]:
     notification, _ = await service.send_notification(
         notification_id, provider=body.provider if body else "default"
@@ -175,7 +180,7 @@ async def retry_notification(
     notification_id: uuid.UUID,
     body: NotificationRetryRequest | None = None,
     service: NotificationService = Depends(get_notification_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[NotificationResponse]:
     notification, _ = await service.retry_notification(
         notification_id, scheduled_at=body.scheduled_at if body else None
@@ -193,7 +198,7 @@ async def mark_delivered(
     notification_id: uuid.UUID,
     body: NotificationDeliverRequest | None = None,
     service: NotificationService = Depends(get_notification_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[NotificationResponse]:
     notification, _ = await service.mark_delivered(
         notification_id, delivered_at=body.delivered_at if body else None
@@ -211,7 +216,7 @@ async def mark_failed(
     notification_id: uuid.UUID,
     body: NotificationFailRequest,
     service: NotificationService = Depends(get_notification_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[NotificationResponse]:
     notification, _ = await service.mark_failed(
         notification_id, reason=body.reason
@@ -228,7 +233,7 @@ async def mark_failed(
 async def archive_notification(
     notification_id: uuid.UUID,
     service: NotificationService = Depends(get_notification_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[NotificationResponse]:
     notification, _ = await service.archive_notification(notification_id)
     return SuccessResponse(data=NotificationResponse.model_validate(notification))

@@ -6,9 +6,10 @@ interface RaiseComplaintModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  customerId?: string;
 }
 
-export default function RaiseComplaintModal({ isOpen, onClose, onSuccess }: RaiseComplaintModalProps) {
+export default function RaiseComplaintModal({ isOpen, onClose, onSuccess, customerId }: RaiseComplaintModalProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
@@ -33,12 +34,13 @@ export default function RaiseComplaintModal({ isOpen, onClose, onSuccess }: Rais
       const backendProduct = isProduct ? formData.category : undefined;
 
       await api.post("/complaints", {
+        customer_id: customerId,
         title: formData.title,
         description: formData.description,
         category: backendCategory,
         product: backendProduct,
         priority: formData.priority,
-        source: "web_form", // It's always a web form submission
+        source: "portal", // Filed directly through the customer portal form
         channel: formData.source, // What they selected as preferred channel
         policy_number: formData.policy_number || undefined,
         claim_number: formData.claim_number || undefined,

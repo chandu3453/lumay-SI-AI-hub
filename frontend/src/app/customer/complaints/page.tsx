@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/http";
 import { AlertCircle, ChevronRight, Search, ShieldAlert, Plus, Filter, ArrowUpDown } from "lucide-react";
 import RaiseComplaintModal from "@/components/RaiseComplaintModal";
+import { useCustomerSession } from "@/features/customer/use-customer-session";
 
 type ComplaintItem = {
   id: string;
@@ -36,6 +37,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export default function CustomerComplaintsPage() {
+  const session = useCustomerSession();
   const [complaints, setComplaints] = useState<ComplaintItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -44,9 +46,10 @@ export default function CustomerComplaintsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchComplaints = async () => {
+    if (!session) return;
     try {
       setLoading(true);
-      const res = await api.get("/complaints?page_size=50");
+      const res = await api.get(`/complaints?page_size=50&customer_id=${session.id}`);
       const list = res.data?.data || [];
       setComplaints(list.sort((a: ComplaintItem, b: ComplaintItem) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     } catch {
@@ -56,7 +59,7 @@ export default function CustomerComplaintsPage() {
     }
   };
 
-  useEffect(() => { fetchComplaints(); }, []);
+  useEffect(() => { fetchComplaints(); }, [session]);
 
   const filtered = complaints.filter((c) => {
     const matchesSearch = !search || c.title?.toLowerCase().includes(search.toLowerCase()) || c.complaint_number?.toLowerCase().includes(search.toLowerCase());
@@ -187,12 +190,13 @@ export default function CustomerComplaintsPage() {
         )}
       </div>
 
-      <RaiseComplaintModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <RaiseComplaintModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        customerId={session?.id}
         onSuccess={() => {
           fetchComplaints();
-        }} 
+        }}
       />
     </div>
   );

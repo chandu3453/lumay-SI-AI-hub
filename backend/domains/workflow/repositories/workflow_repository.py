@@ -109,3 +109,12 @@ class WorkflowRepository(BaseRepository[Workflow]):
             )
         )
         return result.scalar_one_or_none()
+
+    # ── Sprint 29 — Reporting aggregates ──────────────────────────────────
+
+    async def count_by_status(self) -> dict[str, int]:
+        query = select(Workflow.workflow_status, func.count(Workflow.id)).group_by(
+            Workflow.workflow_status
+        )
+        result = await self._session.execute(query)
+        return {str(status): count for status, count in result.all()}

@@ -4,10 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Send, Phone, Video, MoreVertical, MessageSquare, Search, Plus, Archive, ChevronDown, Smile, Paperclip, Mic } from "lucide-react";
 import { interactionsService } from "@/services/interactions.service";
+import { useCustomerSession } from "@/features/customer/use-customer-session";
 
 interface ChatMessage { role: string; content: string; timestamp: string; }
 
 export default function CustomerWhatsAppPage() {
+  const session = useCustomerSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [interactionId, setInteractionId] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
@@ -16,8 +18,9 @@ export default function CustomerWhatsAppPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!session) return;
     startSession();
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -25,7 +28,7 @@ export default function CustomerWhatsAppPage() {
 
   const startSession = async () => {
     try {
-      const res = await interactionsService.start("cust-102", "whatsapp");
+      const res = await interactionsService.start(session?.email, "whatsapp");
       const dbInt = res.data?.data;
       if (dbInt) {
         setInteractionId(dbInt.id);

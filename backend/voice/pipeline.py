@@ -9,12 +9,18 @@ It receives text input (from STT) and returns text output (for TTS).
 
 import asyncio
 import uuid
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from app.platform.logging import get_logger
 from voice.transcript_manager import get_transcript_manager
 
 logger = get_logger(__name__)
+
+_FALLBACK_MESSAGE = (
+    "I apologise, but I am experiencing a temporary technical issue. "
+    "Your message has been recorded and a member of our team will follow up with you shortly. "
+    "For urgent matters, please call 800-LUMAY-1."
+)
 
 
 class ConversationProcessor:
@@ -73,15 +79,57 @@ class ConversationProcessor:
                 session_id=self._session_id,
                 error=str(exc),
             )
-            fallback = (
-                "I apologise, but I am experiencing a temporary technical issue. "
-                "Your message has been recorded and a member of our team will follow up with you shortly. "
-                "For urgent matters, please call 800-LUMAY-1."
+            await tm.add_segment(
+                self._session_id, "assistant", _FALLBACK_MESSAGE, is_partial=False
+            )
+            return _FALLBACK_MESSAGE
+
+    async def process_text_stream(self, text: str) -> AsyncGenerator[str, None]:
+        """Streaming counterpart of process_text — yields response text as it
+        arrives from the AI gateway instead of waiting for the full reply, so
+        the caller can start TTS on the first sentence immediately."""
+        tm = get_transcript_manager()
+        await tm.add_segment(self._session_id, "customer", text, is_partial=False)
+
+        from domains.interaction.services.conversation_engine import (
+            process_conversation_stream,
+        )
+
+        full_response = ""
+        try:
+            async for event in process_conversation_stream(
+                interaction_id=uuid.UUID(self._interaction_id),
+                message=text,
+                interaction_service=self._interaction_service,
+                complaint_service=self._complaint_service,
+                workflow_service=self._workflow_service,
+                notification_service=self._notification_service,
+            ):
+                if event["type"] == "chunk":
+                    full_response += event["text"]
+                    yield event["text"]
+                elif event["type"] == "done":
+                    if event.get("auto_triaged"):
+                        complaint_id = event.get("complaint_id")
+                        workflow_id = event.get("workflow_id")
+                        if complaint_id:
+                            await tm.update_metadata(self._session_id, "complaint_id", str(complaint_id))
+                        if workflow_id:
+                            await tm.update_metadata(self._session_id, "workflow_id", str(workflow_id))
+
+            await tm.add_segment(
+                self._session_id, "assistant", full_response, is_partial=False
+            )
+        except Exception as exc:
+            logger.error(
+                "voice_conversation_engine_stream_failed",
+                session_id=self._session_id,
+                error=str(exc),
             )
             await tm.add_segment(
-                self._session_id, "assistant", fallback, is_partial=False
+                self._session_id, "assistant", _FALLBACK_MESSAGE, is_partial=False
             )
-            return fallback
+            yield _FALLBACK_MESSAGE
 
 
 class VoicePipeline:
@@ -118,6 +166,9 @@ class VoicePipeline:
             from pipecat.pipeline.runner import PipelineRunner
             from pipecat.transports.livekit.transport import LiveKitTransport as PipecatLiveKitTransport
             from pipecat.transports.livekit.transport import LiveKitParams
+            from pipecat.audio.vad.silero import SileroVADAnalyzer
+            from pipecat.audio.vad.vad_analyzer import VADParams
+            from pipecat.processors.audio.vad_processor import VADProcessor
 
             from voice.config import VoiceConfig
             _vc = VoiceConfig()
@@ -128,6 +179,18 @@ class VoicePipeline:
                 token=self._agent_token,
                 room_name=self._room_name,
                 params=LiveKitParams(audio_in_enabled=True, audio_out_enabled=True),
+            )
+
+            logger.info("voice_pipeline_creating_vad", session_id=self._session_id)
+            vad_processor = VADProcessor(
+                vad_analyzer=SileroVADAnalyzer(
+                    params=VADParams(
+                        confidence=_vc.vad_confidence,
+                        start_secs=_vc.vad_start_secs,
+                        stop_secs=_vc.vad_stop_secs,
+                        min_volume=_vc.vad_min_volume,
+                    ),
+                ),
             )
 
             from voice.audio import AzureSTTProvider, AzureTTSProvider
@@ -192,6 +255,9 @@ class VoicePipeline:
                 async def process_text(self, text: str) -> str:
                     return await self._processor.process_text(text)
 
+                def process_text_stream(self, text: str):
+                    return self._processor.process_text_stream(text)
+
             llm_processor = PipecatLLMProcessor(self._processor)
 
             from pipecat.processors.frame_processor import FrameProcessor
@@ -199,35 +265,93 @@ class VoicePipeline:
                 TextFrame, StartFrame, TranscriptionFrame, AudioRawFrame,
                 LLMFullResponseStartFrame, LLMFullResponseEndFrame,
                 InterimTranscriptionFrame, EndFrame, CancelFrame,
+                VADUserStartedSpeakingFrame, VADUserStoppedSpeakingFrame,
             )
+
+            # Grace window after a VAD-confirmed "user stopped speaking" event
+            # before dispatching the turn — VAD is now the primary turn-taking
+            # signal (replaces the old fixed 1.8s post-transcript debounce).
+            _VAD_GRACE_SECS = 0.5
+            # Safety-net grace window used only if no recent VAD-stop signal
+            # exists (e.g. VAD misfires) — still faster than the old 1.8s.
+            _FALLBACK_GRACE_SECS = 1.2
+            _VAD_RECENCY_WINDOW_SECS = 3.0
 
             class ConversationFrameworkProcessor(FrameProcessor):
                 def __init__(self, llm: PipecatLLMProcessor) -> None:
                     super().__init__()
                     self._llm = llm
                     self.first_audio_event = asyncio.Event()
-                    self._turn_buffer = []
-                    self._turn_dispatch_task = None
+                    self._turn_buffer: list[str] = []
+                    self._dispatch_task: asyncio.Task | None = None
+                    self._generation_task: asyncio.Task | None = None
+                    self._agent_speaking = False
+                    self._last_vad_stop_at: float | None = None
 
                 def _cancel_dispatch_task(self) -> None:
-                    if self._turn_dispatch_task and not self._turn_dispatch_task.done():
-                        self._turn_dispatch_task.cancel()
-                        self._turn_dispatch_task = None
+                    if self._dispatch_task and not self._dispatch_task.done():
+                        self._dispatch_task.cancel()
+                    self._dispatch_task = None
 
-                async def _wait_and_dispatch_turn(self) -> None:
-                    # Wait for 1.8 seconds of complete silence before dispatching
-                    await asyncio.sleep(1.8)
-                    if self._turn_buffer:
-                        full_text = " ".join(self._turn_buffer).strip()
-                        self._turn_buffer.clear()
-                        if full_text:
-                            logger.info("voice_pipeline_dispatching_aggregated_turn", text=full_text)
-                            import time
-                            turn_start = time.monotonic()
-                            response = await self._llm.process_text(full_text)
-                            total_latency = (time.monotonic() - turn_start) * 1000
-                            logger.info("voice_pipeline_total_turn_latency", latency_ms=total_latency, transcript=full_text)
-                            await self._push_response(response)
+                def _cancel_generation(self) -> None:
+                    if self._generation_task and not self._generation_task.done():
+                        self._generation_task.cancel()
+                    self._generation_task = None
+                    self._agent_speaking = False
+
+                async def _grace_then_dispatch(self, grace_secs: float) -> None:
+                    await asyncio.sleep(grace_secs)
+                    if not self._turn_buffer:
+                        return
+                    full_text = " ".join(self._turn_buffer).strip()
+                    self._turn_buffer.clear()
+                    if full_text:
+                        logger.info("voice_pipeline_dispatching_aggregated_turn", text=full_text, grace_secs=grace_secs)
+                        self._generation_task = asyncio.create_task(self._dispatch_turn(full_text))
+
+                async def _dispatch_turn(self, text: str) -> None:
+                    """Streams the AI response and pushes complete sentences to
+                    TTS as they form, instead of waiting for the full reply —
+                    cancellable mid-flight for barge-in (see broadcast_interruption
+                    below)."""
+                    import re
+                    import time
+
+                    self._agent_speaking = True
+                    turn_start = time.monotonic()
+                    ttft_logged = False
+                    sentence_buffer = ""
+                    try:
+                        await self.push_frame(LLMFullResponseStartFrame())
+                        async for chunk in self._llm.process_text_stream(text):
+                            if not ttft_logged:
+                                ttft_logged = True
+                                ttft_ms = (time.monotonic() - turn_start) * 1000
+                                logger.info("voice_pipeline_turn_ttft_ms", latency_ms=ttft_ms, transcript=text)
+                            sentence_buffer += chunk
+                            while True:
+                                match = re.search(r"(?<=[.!?])\s+", sentence_buffer)
+                                if not match:
+                                    break
+                                sentence = sentence_buffer[: match.start()].strip()
+                                sentence_buffer = sentence_buffer[match.end():]
+                                if sentence:
+                                    clean = self._sanitize_for_tts(sentence)
+                                    if clean:
+                                        await self.push_frame(TextFrame(clean))
+                        remaining = sentence_buffer.strip()
+                        if remaining:
+                            clean = self._sanitize_for_tts(remaining)
+                            if clean:
+                                await self.push_frame(TextFrame(clean))
+                        await self.push_frame(LLMFullResponseEndFrame())
+                        total_latency = (time.monotonic() - turn_start) * 1000
+                        logger.info("voice_pipeline_total_turn_latency", latency_ms=total_latency, transcript=text)
+                    except asyncio.CancelledError:
+                        logger.info("voice_pipeline_turn_interrupted", transcript=text)
+                        raise
+                    finally:
+                        self._agent_speaking = False
 
                 def _sanitize_for_tts(self, text: str) -> str:
                     import re
@@ -269,19 +393,6 @@ class VoicePipeline:
                     text = re.sub(r'\s+', ' ', text)
                     return text.strip()
 
-                async def _push_response(self, response: str) -> None:
-                    """Push LLM response split into sentences to enable faster streaming TTS start."""
-                    await self.push_frame(LLMFullResponseStartFrame())
-                    speech_text = self._sanitize_for_tts(response)
-                    import re
-                    sentences = re.split(r'(?<=[.!?])\s+', speech_text)
-                    for sentence in sentences:
-                        sentence = sentence.strip()
-                        if sentence:
-                            await self.push_frame(TextFrame(sentence))
-                            await asyncio.sleep(0.01)
-                    await self.push_frame(LLMFullResponseEndFrame())
-
                 async def process_frame(self, frame: Any, direction: Any) -> None:
                     await super().process_frame(frame, direction)
                     if isinstance(frame, StartFrame):
@@ -291,17 +402,39 @@ class VoicePipeline:
                             "SYSTEM_INTERNAL: The user has just connected to the call. "
                             "Introduce yourself exactly as: 'Hello, welcome to LuMay Insurance. I'm the LuMay AI Assistant. How can I help you today?'"
                         )
-                        response = await self._llm.process_text(prompt)
-                        await self._push_response(response)
+                        self._generation_task = asyncio.create_task(self._dispatch_turn(prompt))
+                    elif isinstance(frame, VADUserStartedSpeakingFrame):
+                        # Cancel any pending grace-dispatch — the user is still
+                        # (or again) talking, so the previous "stopped speaking"
+                        # signal was premature/stale.
+                        self._cancel_dispatch_task()
+                        if self._agent_speaking:
+                            logger.info("voice_pipeline_barge_in_detected")
+                            self._cancel_generation()
+                            await self.broadcast_interruption()
+                        await self.push_frame(frame)
+                    elif isinstance(frame, VADUserStoppedSpeakingFrame):
+                        import time
+                        self._last_vad_stop_at = time.monotonic()
+                        self._cancel_dispatch_task()
+                        self._dispatch_task = asyncio.create_task(self._grace_then_dispatch(_VAD_GRACE_SECS))
+                        await self.push_frame(frame)
                     elif isinstance(frame, TranscriptionFrame):
+                        import time
                         self.first_audio_event.set()
                         self._turn_buffer.append(frame.text.strip())
                         self._cancel_dispatch_task()
-                        self._turn_dispatch_task = asyncio.create_task(self._wait_and_dispatch_turn())
+                        vad_is_fresh = (
+                            self._last_vad_stop_at is not None
+                            and (time.monotonic() - self._last_vad_stop_at) < _VAD_RECENCY_WINDOW_SECS
+                        )
+                        grace = _VAD_GRACE_SECS if vad_is_fresh else _FALLBACK_GRACE_SECS
+                        self._dispatch_task = asyncio.create_task(self._grace_then_dispatch(grace))
                     elif isinstance(frame, InterimTranscriptionFrame):
                         self._cancel_dispatch_task()
                     elif isinstance(frame, EndFrame) or isinstance(frame, CancelFrame):
                         self._cancel_dispatch_task()
+                        self._cancel_generation()
                     elif isinstance(frame, AudioRawFrame):
                         # Discard user audio raw frames to prevent echo loopback to transport.output()
                         pass
@@ -313,16 +446,17 @@ class VoicePipeline:
             logger.info("voice_pipeline_assembling", session_id=self._session_id)
             pipeline = Pipeline([
                 transport.input(),
+                vad_processor,
                 stt_service,
                 framework,
                 tts_service,
                 transport.output(),
             ])
 
-            from pipecat.pipeline.task import PipelineTask
+            from pipecat.pipeline.worker import PipelineWorker
 
             runner = PipelineRunner()
-            task = PipelineTask(pipeline)
+            task = PipelineWorker(pipeline)
             self._pipeline_instance = pipeline
             self._runner_instance = runner
             self._task_instance = task

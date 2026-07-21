@@ -17,7 +17,9 @@ var/
 sdist/
 develop-eggs/
 .installed.cfg
-lib/
+# NOTE: a bare "lib/" was here and silently excluded frontend/src/lib/ from
+# git since project inception (Sprint 30 discovery) — scoped to backend only.
+backend/lib/
 lib64/
 *.manifest
 *.spec
@@ -145,6 +147,9 @@ bin/
 
 # ---- Env setup scripts (contain secrets) ----
 backend/update_env.py
+backend/fix_env.py
+backend/*env*.py
+!backend/app/**/*env*.py
 
 # ---- AI artifacts ----
 .ai_cache/

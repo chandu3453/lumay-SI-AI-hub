@@ -19,6 +19,7 @@ def test_application_boots_and_registers_expected_routes() -> None:
     assert "/api/v1/complaints" in paths
     assert "/api/v1/workflows" in paths
     assert "/api/v1/notifications" in paths
+    assert "/api/v1/conversations" in paths
 
 
 def test_openapi_generation_succeeds() -> None:
@@ -41,5 +42,5 @@ def test_alembic_migration_chain_is_linear() -> None:
     revisions = list(script.walk_revisions(base="base", head="heads"))
 
     assert len(heads) == 1
-    assert heads[0] == "20260715_0930"
-    assert len(revisions) == 7
+    assert heads[0] == "20260721_1100"
+    assert len(revisions) == 15

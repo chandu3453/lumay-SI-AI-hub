@@ -4,6 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Send, Sparkles, MoreHorizontal, Paperclip, Smile } from "lucide-react";
 import { interactionsService } from "@/services/interactions.service";
+import { conversationsService } from "@/services/conversations.service";
+import { useCustomerSession } from "@/features/customer/use-customer-session";
+
+const TYPING_DEBOUNCE_MS = 500;
 
 interface ChatMessage { role: string; content: string; timestamp: string; }
 
@@ -12,16 +16,63 @@ import { useSearchParams } from "next/navigation";
 export default function CustomerWebChatPage() {
   const searchParams = useSearchParams();
   const complaintId = searchParams.get("complaint_id");
+  const session = useCustomerSession();
+  const firstName = session?.name?.split(" ")[0] ?? "there";
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [interactionId, setInteractionId] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [typing, setTyping] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const isTypingRef = useRef(false);
 
   useEffect(() => {
+    if (!session) return;
     startSession();
-  }, [complaintId]);
+  }, [complaintId, session]);
+
+  // Resolve this webchat session's conversation_id once the interaction
+  // exists — the Conversation domain only learns about it after
+  // ConversationFactory links it, so this can briefly 404 right after
+  // startSession(); that's fine, typing pings are best-effort.
+  useEffect(() => {
+    if (!interactionId) return;
+    conversationsService
+      .getByExternalRef("interaction_id", interactionId)
+      .then((res) => setConversationId(res.data.data.id))
+      .catch(() => {
+        /* conversation link not established yet — typing stays disabled */
+      });
+  }, [interactionId]);
+
+  function stopCustomerTyping() {
+    clearTimeout(typingTimeoutRef.current);
+    if (isTypingRef.current && conversationId) {
+      isTypingRef.current = false;
+      void conversationsService.postTyping(conversationId, {
+        participant_type: "customer",
+        is_typing: false,
+      });
+    }
+  }
+
+  function handleTextInputChange(value: string) {
+    setTextInput(value);
+    if (!conversationId) return;
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      void conversationsService.postTyping(conversationId, {
+        participant_type: "customer",
+        is_typing: true,
+      });
+    }
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(stopCustomerTyping, TYPING_DEBOUNCE_MS);
+  }
+
+  useEffect(() => () => stopCustomerTyping(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -29,13 +80,13 @@ export default function CustomerWebChatPage() {
 
   const startSession = async () => {
     try {
-      const res = await interactionsService.start("cust-102", "web_chat", complaintId || undefined);
+      const res = await interactionsService.start(session?.email, "web_chat", complaintId || undefined);
       const dbInt = res.data?.data;
       if (dbInt) {
         setInteractionId(dbInt.id);
-        const initialGreeting = complaintId 
-          ? `Hello Fatima! I see you are continuing your conversation regarding complaint #${complaintId.split('-')[0].toUpperCase()}.\n\nHow can I help you further with this issue?`
-          : `Hello Fatima! Welcome to LuMay Insurance.\n\nI am your AI Assistant. How can I help you today?`;
+        const initialGreeting = complaintId
+          ? `Hello ${firstName}! I see you are continuing your conversation regarding complaint #${complaintId.split('-')[0].toUpperCase()}.\n\nHow can I help you further with this issue?`
+          : `Hello ${firstName}! Welcome to LuMay Insurance.\n\nI am your AI Assistant. How can I help you today?`;
         setMessages([{ role: "assistant", content: initialGreeting, timestamp: new Date().toISOString() }]);
       }
     } catch (err) { console.error("Failed to start:", err); }
@@ -43,6 +94,7 @@ export default function CustomerWebChatPage() {
 
   const handleSend = async (text: string) => {
     if (!text.trim() || !interactionId || isSending) return;
+    stopCustomerTyping();
     setMessages(prev => [...prev, { role: "user", content: text, timestamp: new Date().toISOString() }]);
     setTextInput("");
     setIsSending(true); setTyping(true);
@@ -131,10 +183,11 @@ export default function CustomerWebChatPage() {
           <button className="p-3 text-slate-400 hover:text-blue-500 transition-colors shrink-0">
             <Paperclip className="h-5 w-5" />
           </button>
-          <textarea 
-            placeholder="Type your message..." 
-            value={textInput} 
-            onChange={e => setTextInput(e.target.value)} 
+          <textarea
+            placeholder="Type your message..."
+            value={textInput}
+            onChange={e => handleTextInputChange(e.target.value)}
+            onBlur={stopCustomerTyping}
             onKeyDown={e => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();

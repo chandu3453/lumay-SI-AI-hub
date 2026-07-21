@@ -29,6 +29,7 @@ import { useDemoSSE } from "@/hooks/use-demo-sse";
 import { useDemoStore } from "@/stores/demo.store";
 import { useState, useEffect, useCallback } from "react";
 import { complaintsService } from "@/services/complaints.service";
+import { useAuthStore } from "@/stores/auth.store";
 import type { AIOverrideRequest, RelatedComplaintSummary, SLAStatusResult } from "@/types/domain";
 
 const severityColors: Record<string, string> = {
@@ -91,7 +92,9 @@ export default function ComplaintInvestigationPage() {
   const [showOverride, setShowOverride] = useState(false);
   const [related, setRelated] = useState<RelatedComplaintSummary[]>([]);
   const [acknowledging, setAcknowledging] = useState(false);
+  const [actionPending, setActionPending] = useState<string | null>(null);
   const demoEnabled = useDemoStore((s) => s.enabled);
+  const currentUser = useAuthStore((s) => s.user);
 
   useDemoSSE();
 
@@ -118,6 +121,50 @@ export default function ComplaintInvestigationPage() {
       await complaintsService.applyAIOverride(String(c.id), override);
       setShowOverride(false);
       refetch();
+    }
+  }
+
+  async function handleAssign() {
+    if (!c?.id || !currentUser?.id) return;
+    setActionPending("assign");
+    try {
+      await complaintsService.assign(String(c.id), currentUser.id);
+      refetch();
+    } finally {
+      setActionPending(null);
+    }
+  }
+
+  async function handleEscalate() {
+    if (!c?.id) return;
+    setActionPending("escalate");
+    try {
+      await complaintsService.escalate(String(c.id));
+      refetch();
+    } finally {
+      setActionPending(null);
+    }
+  }
+
+  async function handleResolve() {
+    if (!c?.id) return;
+    setActionPending("resolve");
+    try {
+      await complaintsService.resolve(String(c.id));
+      refetch();
+    } finally {
+      setActionPending(null);
+    }
+  }
+
+  async function handleClose() {
+    if (!c?.id) return;
+    setActionPending("close");
+    try {
+      await complaintsService.close(String(c.id));
+      refetch();
+    } finally {
+      setActionPending(null);
     }
   }
 
@@ -565,14 +612,14 @@ export default function ComplaintInvestigationPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {[
-                  { icon: User, label: "Assign to Officer", variant: "default" },
-                  { icon: AlertTriangle, label: "Escalate", variant: "destructive" },
-                  { icon: Copy, label: "Merge Duplicate", variant: "outline" },
-                  { icon: Send, label: "Send Email", variant: "outline" },
-                  { icon: GitBranch, label: "Create Workflow", variant: "outline", action: () => router.push("/workflow") },
-                  { icon: Bell, label: "Notify Supervisor", variant: "outline" },
-                  { icon: CheckCircle2, label: "Resolve", variant: "success" },
-                  { icon: Shield, label: "Close Complaint", variant: "outline" },
+                  { key: "assign", icon: User, label: "Assign to Officer", variant: "default", action: handleAssign },
+                  { key: "escalate", icon: AlertTriangle, label: "Escalate", variant: "destructive", action: handleEscalate },
+                  { key: "merge", icon: Copy, label: "Merge Duplicate", variant: "outline" },
+                  { key: "email", icon: Send, label: "Send Email", variant: "outline" },
+                  { key: "workflow", icon: GitBranch, label: "Create Workflow", variant: "outline", action: () => router.push("/workflow") },
+                  { key: "notify", icon: Bell, label: "Notify Supervisor", variant: "outline" },
+                  { key: "resolve", icon: CheckCircle2, label: "Resolve", variant: "success", action: handleResolve },
+                  { key: "close", icon: Shield, label: "Close Complaint", variant: "outline", action: handleClose },
                 ].map((action) => {
                   const Icon = action.icon;
                   const variantClasses: Record<string, string> = {
@@ -581,12 +628,21 @@ export default function ComplaintInvestigationPage() {
                     outline: "border border-border bg-white hover:bg-accent text-[#0F172A]",
                     success: "bg-[#16A34A] text-white hover:bg-[#16A34A]/90",
                   };
+                  const disabled = !action.action || (c.status === "closed" || c.status === "archived") || actionPending !== null;
                   return (
-                    <button key={action.label} onClick={action.action} className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
-                      variantClasses[action.variant],
-                    )}>
-                      <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{action.label}</span>
+                    <button
+                      key={action.key}
+                      onClick={action.action}
+                      disabled={disabled}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                        variantClasses[action.variant],
+                      )}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        {actionPending === action.key ? "Working…" : action.label}
+                      </span>
                       <ChevronRight className="h-4 w-4 opacity-50" />
                     </button>
                   );

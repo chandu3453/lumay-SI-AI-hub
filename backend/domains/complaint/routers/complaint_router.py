@@ -16,7 +16,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 
-from app.dependencies.auth import CurrentUser, get_current_user
+from app.dependencies.auth import CurrentUser, get_current_active_user, get_current_user
 from app.dependencies.complaint import get_complaint_service
 from domains.complaint.constants.complaint_constants import (
     ComplaintCategory,
@@ -97,6 +97,12 @@ async def ingest_interaction(
     complaint, _ = await service.create_complaint(create_data)
     background_tasks.add_task(service.trigger_ai_analysis, complaint.id)
 
+    from domains.conversation.integration_hooks import on_complaint_filed_manually
+
+    background_tasks.add_task(
+        on_complaint_filed_manually, body.customer_id, complaint.id, complaint.complaint_number
+    )
+
     return SuccessResponse(
         data=ComplaintIngestResponse(
             complaint_id=complaint.id,
@@ -127,6 +133,13 @@ async def create_complaint(
     complaint, _ = await service.create_complaint(body)
     # FR-010: Trigger AI analysis in the background
     background_tasks.add_task(service.trigger_ai_analysis, complaint.id)
+
+    from domains.conversation.integration_hooks import on_complaint_filed_manually
+
+    background_tasks.add_task(
+        on_complaint_filed_manually, body.customer_id, complaint.id, complaint.complaint_number
+    )
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))
 
 
@@ -137,6 +150,7 @@ async def create_complaint(
     description="Returns a paginated list of complaints with optional Phase 2 filters.",
 )
 async def list_complaints(
+    customer_id: uuid.UUID | None = Query(None, description="Filter by customer"),
     status: ComplaintStatus | None = Query(None, description="Filter by status"),
     category: ComplaintCategory | None = Query(None, description="Filter by category"),
     priority: ComplaintPriority | None = Query(None, description="Filter by priority"),
@@ -155,6 +169,7 @@ async def list_complaints(
     _current_user: CurrentUser | None = Depends(get_current_user),
 ) -> PaginatedResponse[ComplaintSummary]:
     items, total = await service.list_complaints(
+        customer_id=customer_id,
         status=status,
         category=category,
         priority=priority,
@@ -204,9 +219,14 @@ async def update_complaint(
     complaint_id: uuid.UUID,
     body: ComplaintUpdate,
     service: ComplaintService = Depends(get_complaint_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[ComplaintResponse]:
     complaint, _ = await service.update_complaint(complaint_id, body)
+
+    from domains.conversation.integration_hooks import on_complaint_lifecycle
+
+    await on_complaint_lifecycle(service._repository._session, complaint, "complaint.updated")
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))
 
 
@@ -226,13 +246,18 @@ async def override_ai_classification(
     complaint_id: uuid.UUID,
     body: AIOverrideRequest,
     service: ComplaintService = Depends(get_complaint_service),
-    current_user: CurrentUser | None = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[ComplaintResponse]:
     complaint, _ = await service.apply_ai_override(
         complaint_id=complaint_id,
         override=body,
-        agent_id=current_user.id if current_user else None,
+        agent_id=current_user.user_id,
     )
+
+    from domains.conversation.integration_hooks import on_complaint_lifecycle
+
+    await on_complaint_lifecycle(service._repository._session, complaint, "complaint.ai_override_applied")
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))
 
 
@@ -251,6 +276,24 @@ async def analyze_complaint(
     _current_user: CurrentUser | None = Depends(get_current_user),
 ) -> SuccessResponse[ComplaintResponse]:
     complaint = await service.run_ai_analysis(complaint_id)
+
+    from domains.conversation.integration_hooks import on_complaint_lifecycle
+
+    # `run_ai_analysis` emits no DomainEvent (confirmed — it returns a bare
+    # Complaint), so this is the one complaint lifecycle hook with a synthetic
+    # event_type rather than a reused routing-key string.
+    await on_complaint_lifecycle(
+        service._repository._session,
+        complaint,
+        "complaint.intelligence_result",
+        {
+            "category": str(complaint.category) if complaint.category else None,
+            "severity": str(complaint.severity) if complaint.severity else None,
+            "priority": str(complaint.priority) if complaint.priority else None,
+            "sentiment": complaint.sentiment,
+        },
+    )
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))
 
 
@@ -369,8 +412,13 @@ async def acknowledge_complaint(
 ) -> SuccessResponse[ComplaintResponse]:
     complaint, _ = await service.acknowledge_complaint(
         complaint_id=complaint_id,
-        agent_id=current_user.id if current_user else None,
+        agent_id=current_user.user_id if current_user else None,
     )
+
+    from domains.conversation.integration_hooks import on_complaint_lifecycle
+
+    await on_complaint_lifecycle(service._repository._session, complaint, "complaint.acknowledged")
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))
 
 
@@ -450,11 +498,22 @@ async def assign_complaint(
     complaint_id: uuid.UUID,
     body: ComplaintAssignRequest,
     service: ComplaintService = Depends(get_complaint_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[ComplaintResponse]:
     complaint, _ = await service.assign_complaint(
         complaint_id, agent_id=body.agent_id, queue=body.queue
     )
+
+    from domains.conversation.integration_hooks import on_complaint_lifecycle
+
+    await on_complaint_lifecycle(
+        service._repository._session,
+        complaint,
+        "complaint.assigned",
+        {"queue": body.queue},
+        assigned_agent_id=body.agent_id,
+    )
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))
 
 
@@ -467,9 +526,14 @@ async def assign_complaint(
 async def escalate_complaint(
     complaint_id: uuid.UUID,
     service: ComplaintService = Depends(get_complaint_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[ComplaintResponse]:
     complaint, _ = await service.escalate_complaint(complaint_id)
+
+    from domains.conversation.integration_hooks import on_complaint_lifecycle
+
+    await on_complaint_lifecycle(service._repository._session, complaint, "complaint.escalated")
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))
 
 
@@ -482,9 +546,14 @@ async def escalate_complaint(
 async def resolve_complaint(
     complaint_id: uuid.UUID,
     service: ComplaintService = Depends(get_complaint_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[ComplaintResponse]:
     complaint, _ = await service.resolve_complaint(complaint_id)
+
+    from domains.conversation.integration_hooks import on_complaint_lifecycle
+
+    await on_complaint_lifecycle(service._repository._session, complaint, "complaint.resolved")
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))
 
 
@@ -497,9 +566,14 @@ async def resolve_complaint(
 async def close_complaint(
     complaint_id: uuid.UUID,
     service: ComplaintService = Depends(get_complaint_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[ComplaintResponse]:
     complaint, _ = await service.close_complaint(complaint_id)
+
+    from domains.conversation.integration_hooks import on_complaint_lifecycle
+
+    await on_complaint_lifecycle(service._repository._session, complaint, "complaint.closed")
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))
 
 
@@ -512,7 +586,12 @@ async def close_complaint(
 async def archive_complaint(
     complaint_id: uuid.UUID,
     service: ComplaintService = Depends(get_complaint_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[ComplaintResponse]:
     complaint, _ = await service.archive_complaint(complaint_id)
+
+    from domains.conversation.integration_hooks import on_complaint_lifecycle
+
+    await on_complaint_lifecycle(service._repository._session, complaint, "complaint.archived")
+
     return SuccessResponse(data=ComplaintResponse.model_validate(complaint))

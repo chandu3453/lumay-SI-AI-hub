@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare, PhoneCall, Mail, ArrowRight, Bot } from "lucide-react";
+import { MessageSquare, PhoneCall, Mail, ArrowRight, Bot, History } from "lucide-react";
 
 export default function CustomerCommunicationPage() {
   return (
@@ -12,6 +12,12 @@ export default function CustomerCommunicationPage() {
         </div>
         <h1 className="text-4xl font-black text-[#0D1B3E] mb-4">Communication Center</h1>
         <p className="text-base text-slate-500">Choose how you want to talk with LuMay AI. All channels are connected to your single, continuous interaction history.</p>
+      </div>
+
+      <div className="text-center">
+        <Link href="/customer/communication/history" className="inline-flex items-center gap-1.5 text-sm font-bold text-[#0052FF] hover:underline">
+          <History className="h-4 w-4" /> View Conversation History
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -4,15 +4,16 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle, ArrowRight, Sparkles, ChevronDown, Globe } from "lucide-react";
+import { customersService } from "@/services/customers.service";
 
-const DEMO_EMAIL = "fatima.lawati@email.com";
-const DEMO_PASSWORD = "Fatima@123";
-const DEMO_NAME = "Fatima Al Lawati";
-
-const CUSTOMER_CREDENTIALS = [
-  { email: DEMO_EMAIL, password: DEMO_PASSWORD, name: DEMO_NAME },
-  { email: "customer@demo.com", password: "Demo@123", name: "Demo Customer" },
-];
+// No real customer authentication exists yet (customer portal has no
+// backend session — see frontend/src/lib/http.ts's customer-route token
+// skip, a known, documented limitation). This checks the entered email
+// against real customer records in Postgres instead of a fully
+// disconnected hardcoded name, so the session that results is tied to an
+// actual customer row. Password is still a single shared demo value.
+const DEMO_EMAIL = "fatima.lawati@example.com";
+const DEMO_PASSWORD = "Demo@123";
 
 export default function CustomerLoginPage() {
   const router = useRouter();
@@ -49,19 +50,29 @@ export default function CustomerLoginPage() {
       return;
     }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    const match = CUSTOMER_CREDENTIALS.find(
-      (c) => c.email === email.trim() && c.password === password,
-    );
-    setLoading(false);
-    if (match) {
-      const session = { email: match.email, name: match.name };
+    try {
+      if (password !== DEMO_PASSWORD) {
+        setError("Invalid email or password. Please try again.");
+        return;
+      }
+      const res = await customersService.list({ page: 1, page_size: 100 });
+      const customers = res.data.data ?? [];
+      const matched = customers.find(
+        (c) => c.email?.toLowerCase() === email.trim().toLowerCase(),
+      );
+      if (!matched) {
+        setError("No customer account found for that email.");
+        return;
+      }
+      const session = { id: String(matched.id), email: matched.email!, name: matched.full_name };
       localStorage.setItem("customer-session", JSON.stringify(session));
       sessionStorage.setItem("customer-session", JSON.stringify(session));
       localStorage.setItem("demo-role", "customer");
       router.push("/customer/dashboard");
-    } else {
-      setError("Invalid email or password. Please try again.");
+    } catch {
+      setError("Unable to verify your account right now. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 

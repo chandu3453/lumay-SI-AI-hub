@@ -1,5 +1,8 @@
 """User Repository — Identity domain."""
 
+import uuid
+from collections.abc import Sequence
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,3 +25,12 @@ class UserRepository(BaseRepository[User]):
             select(User.id).where(User.email == email)
         )
         return result.scalar_one_or_none() is not None
+
+    async def list_by_ids(self, ids: Sequence[uuid.UUID]) -> Sequence[User]:
+        """Sprint 29 — batch name resolution for `assigned_employee_id`
+        UUIDs shown throughout the Conversation/Reporting domains, which
+        carry no FK to `users` (cross-domain by convention in this codebase)."""
+        if not ids:
+            return []
+        result = await self._session.execute(select(User).where(User.id.in_(ids)))
+        return result.scalars().all()

@@ -1,8 +1,14 @@
 "use client";
 
 import { User, Shield, Bell, MapPin, Phone, Mail, Lock, Settings, CreditCard, Sparkles } from "lucide-react";
+import { useCustomerSession } from "@/features/customer/use-customer-session";
 
 export default function CustomerProfilePage() {
+  const session = useCustomerSession();
+  const customerName = session?.name ?? "—";
+  const customerEmail = session?.email ?? "—";
+  const customerInitials = (session?.name ?? "").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "—";
+
   return (
     <div className="p-6 sm:p-8 space-y-8 animate-fade-in max-w-5xl mx-auto">
       <div>
@@ -15,15 +21,14 @@ export default function CustomerProfilePage() {
         <div className="space-y-6">
           <div className="bg-white border border-[#E2E8F0] rounded-[24px] p-8 shadow-sm flex flex-col items-center text-center">
             <div className="h-24 w-24 rounded-full bg-blue-100 text-[#0052FF] flex items-center justify-center font-black text-3xl uppercase mb-4 shadow-inner">
-              FA
+              {customerInitials}
             </div>
-            <h2 className="text-xl font-black text-[#0D1B3E]">Fatima Al Lawati</h2>
+            <h2 className="text-xl font-black text-[#0D1B3E]">{customerName}</h2>
             <div className="flex items-center gap-1.5 mt-2 px-3 py-1 bg-amber-50 rounded-full border border-amber-200">
               <Sparkles className="h-3 w-3 text-amber-500" />
               <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">VIP Member</span>
             </div>
-            <p className="text-xs text-slate-500 mt-4 font-medium">fatima.lawati@email.com</p>
-            <p className="text-xs text-slate-500 mt-1 font-medium">+968 9912 3456</p>
+            <p className="text-xs text-slate-500 mt-4 font-medium">{customerEmail}</p>
           </div>
 
           <div className="bg-white border border-[#E2E8F0] rounded-[24px] shadow-sm overflow-hidden">
@@ -33,15 +38,15 @@ export default function CustomerProfilePage() {
             <div className="divide-y divide-[#E2E8F0]">
               <div className="p-4 flex justify-between items-center">
                 <span className="text-sm font-medium text-slate-600">Active Policies</span>
-                <span className="text-sm font-black text-[#0D1B3E]">3</span>
+                <span className="text-sm font-black text-slate-400">Not available</span>
               </div>
               <div className="p-4 flex justify-between items-center">
                 <span className="text-sm font-medium text-slate-600">Open Claims</span>
-                <span className="text-sm font-black text-[#0D1B3E]">2</span>
+                <span className="text-sm font-black text-slate-400">Not available</span>
               </div>
               <div className="p-4 flex justify-between items-center">
                 <span className="text-sm font-medium text-slate-600">Total Cover</span>
-                <span className="text-sm font-black text-[#0052FF]">OMR 2.5M</span>
+                <span className="text-sm font-black text-slate-400">Not available</span>
               </div>
             </div>
           </div>
@@ -60,15 +65,15 @@ export default function CustomerProfilePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Full Name</label>
-                <p className="text-sm font-medium text-[#0D1B3E] mt-1">Fatima Al Lawati</p>
+                <p className="text-sm font-medium text-[#0D1B3E] mt-1">{customerName}</p>
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date of Birth</label>
-                <p className="text-sm font-medium text-[#0D1B3E] mt-1">12 Nov 1985</p>
+                <p className="text-sm font-medium text-slate-400 mt-1">Not available</p>
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">National ID</label>
-                <p className="text-sm font-medium text-[#0D1B3E] mt-1">1029384756</p>
+                <p className="text-sm font-medium text-slate-400 mt-1">Not available</p>
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preferred Language</label>
@@ -89,22 +94,21 @@ export default function CustomerProfilePage() {
               <div className="flex items-start gap-3">
                 <Mail className="h-4 w-4 text-slate-400 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-[#0D1B3E]">fatima.lawati@email.com</p>
+                  <p className="text-sm font-medium text-[#0D1B3E]">{customerEmail}</p>
                   <p className="text-[10px] text-slate-500">Primary Email</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <Phone className="h-4 w-4 text-slate-400 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-[#0D1B3E]">+968 9912 3456</p>
+                  <p className="text-sm font-medium text-slate-400">Not available</p>
                   <p className="text-[10px] text-slate-500">Primary Mobile</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 pt-4 border-t border-slate-100">
                 <MapPin className="h-4 w-4 text-slate-400 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-[#0D1B3E]">Villa 42, Way 1502, Al Qurum</p>
-                  <p className="text-sm font-medium text-[#0D1B3E]">Muscat, Oman</p>
+                  <p className="text-sm font-medium text-slate-400">Not available</p>
                   <p className="text-[10px] text-slate-500 mt-1">Residential Address</p>
                 </div>
               </div>

@@ -45,9 +45,14 @@ class VoiceConfig:
         self.deepgram_api_key: str = os.getenv("DEEPGRAM_API_KEY", "")
         self.max_session_duration: int = int(os.getenv("VOICE_MAX_SESSION_DURATION", str(settings.voice.max_session_duration_seconds)))
         self.pipeline_connect_timeout: int = int(os.getenv("VOICE_CONNECT_TIMEOUT", "60"))
-        self.turn_detection_threshold: float = float(os.getenv("REALTIME_TURN_DETECTION_THRESHOLD", str(settings.voice.turn_detection_threshold)))
-        self.silence_duration_ms: int = int(os.getenv("REALTIME_SILENCE_DURATION_MS", str(settings.voice.silence_duration_ms)))
-        self.prefix_padding_ms: int = int(os.getenv("REALTIME_PREFIX_PADDING_MS", str(settings.voice.prefix_padding_ms)))
+        # Real Silero VAD params (pipecat.audio.vad.vad_analyzer.VADParams) — these
+        # replace turn_detection_threshold/silence_duration_ms/prefix_padding_ms,
+        # which were read from settings but never wired into anything (no VAD
+        # stage existed in the pipeline until now).
+        self.vad_confidence: float = float(os.getenv("VOICE_VAD_CONFIDENCE", "0.7"))
+        self.vad_start_secs: float = float(os.getenv("VOICE_VAD_START_SECS", "0.2"))
+        self.vad_stop_secs: float = float(os.getenv("VOICE_VAD_STOP_SECS", "0.5"))
+        self.vad_min_volume: float = float(os.getenv("VOICE_VAD_MIN_VOLUME", "0.6"))
 
     @classmethod
     def from_env(cls) -> "VoiceConfig":

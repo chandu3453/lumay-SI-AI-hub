@@ -158,6 +158,7 @@ class ComplaintService(BaseService):
     async def list_complaints(
         self,
         *,
+        customer_id: uuid.UUID | None = None,
         status: ComplaintStatus | None = None,
         category: ComplaintCategory | None = None,
         priority: ComplaintPriority | None = None,
@@ -176,6 +177,7 @@ class ComplaintService(BaseService):
     ) -> tuple[Sequence[Complaint], int]:
         self._logger.debug(
             "complaint_list_requested",
+            customer_id=str(customer_id) if customer_id else None,
             status=status,
             category=category,
             priority=priority,
@@ -184,6 +186,7 @@ class ComplaintService(BaseService):
             page_size=page_size,
         )
         return await self._repository.list(
+            customer_id=customer_id,
             status=status,
             category=category,
             priority=priority,

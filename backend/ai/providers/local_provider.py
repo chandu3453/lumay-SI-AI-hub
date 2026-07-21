@@ -238,6 +238,52 @@ class LocalProvider(BaseLLMProvider):
                 "evidence": []
             }
             content = json.dumps(data)
+        # 11. Agent Assist — intent + next-best-action + suggested replies + insights (Phase 5)
+        elif "ai copilot assisting a human insurance agent" in sys_lower:
+            is_product_inquiry = any(
+                kw in prompt_lower
+                for kw in ["motorcycle", "bike", "car", "vehicle", "quote", "new policy", "purchase", "insure"]
+            )
+            if is_product_inquiry:
+                data = {
+                    "intent": "Product Inquiry",
+                    "intent_confidence": 0.88,
+                    "next_best_actions": [
+                        {"action": "Offer Quote", "rationale": "Customer is asking about a new policy."}
+                    ],
+                    "suggested_replies": [
+                        {
+                            "type": "clarification",
+                            "content": "Could you share the make, model, and year of your vehicle so I can prepare an accurate quote?",
+                        }
+                    ],
+                    "insights": {
+                        "repeated_questions": [],
+                        "missing_info": ["vehicle make/model/year"],
+                        "compliance_risks": [],
+                        "unanswered_questions": [],
+                    },
+                    "confidence": 0.85,
+                }
+            else:
+                data = {
+                    "intent": "General",
+                    "intent_confidence": 0.6,
+                    "next_best_actions": [
+                        {"action": "Verify Policy", "rationale": "Confirm customer identity/policy before proceeding."}
+                    ],
+                    "suggested_replies": [
+                        {"type": "clarification", "content": "Could you tell me more about what you need help with today?"}
+                    ],
+                    "insights": {
+                        "repeated_questions": [],
+                        "missing_info": [],
+                        "compliance_risks": [],
+                        "unanswered_questions": [],
+                    },
+                    "confidence": 0.6,
+                }
+            content = json.dumps(data)
         # Default fallback
         else:
             content = _generate_insurance_response(request.prompt, request.system_prompt or "")

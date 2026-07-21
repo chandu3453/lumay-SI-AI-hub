@@ -64,11 +64,23 @@ def _init_prompts() -> None:
         logger.info("complaint_prompts_registered")
     except Exception:
         logger.warning("complaint_prompts_skipped", exc_info=True)
+    try:
+        from ai.agent_assist.prompts import register_agent_assist_prompts
+        register_agent_assist_prompts()
+        logger.info("agent_assist_prompts_registered")
+    except Exception:
+        logger.warning("agent_assist_prompts_skipped", exc_info=True)
 
 
 async def _init_infrastructure() -> None:
+    try:
+        await init_db_engine()
+        logger.info("infrastructure_started", service="database")
+    except Exception:
+        logger.error("infrastructure_fatal_error", service="database", exc_info=True)
+        raise
+
     for name, coro in (
-        ("database", init_db_engine()),
         ("redis", init_redis()),
         ("opensearch", init_search_client()),
         ("storage", init_storage_client()),

@@ -17,33 +17,32 @@ type AlertKPICardsProps = {
 };
 
 export function AlertKPICards({ highRiskAlerts, slaAtRisk, regulatoryRisk, newAlertsLastHour }: AlertKPICardsProps) {
-  // Use mockup data as values for the CEO-approved display
   const cards: KPI[] = [
     {
       key: "high_risk",
       label: "High Risk Alerts",
-      value: "2",
+      value: highRiskAlerts,
       icon: <AlertTriangle className="h-5 w-5 text-red-600" />,
       iconBg: "bg-red-50 border-red-100",
     },
     {
       key: "sla_at_risk",
       label: "SLA At Risk",
-      value: "3",
+      value: slaAtRisk,
       icon: <Clock className="h-5 w-5 text-amber-600" />,
       iconBg: "bg-amber-50 border-amber-100",
     },
     {
       key: "regulatory",
       label: "Regulatory Risk",
-      value: "1",
+      value: regulatoryRisk,
       icon: <ShieldAlert className="h-5 w-5 text-purple-600" />,
       iconBg: "bg-purple-50 border-purple-100",
     },
     {
       key: "new_alerts",
       label: "New Alerts (Last 1 Hour)",
-      value: "6",
+      value: newAlertsLastHour,
       icon: <Clock className="h-5 w-5 text-blue-600" />,
       iconBg: "bg-blue-50 border-blue-100",
     },

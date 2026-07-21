@@ -316,10 +316,75 @@ class AIGateway:
             logger.error("gateway_process_failed", operation=request.operation, error=str(exc))
             return GatewayResponse(success=False, error=str(exc), latency_ms=elapsed)
 
-    async def stream(self, request: GatewayRequest) -> AsyncGenerator[str, None]:
-        messages = [{"role": "user", "content": request.payload.get("prompt", "")}]
-        async for token in self.provider.generate_stream(messages):
-            yield token
+    async def stream(
+        self,
+        messages: list[ChatMessage],
+        system_prompt: str | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Streams a chat completion token-by-token, mirroring chat()'s request
+        shape (full message history + system prompt) with the same
+        provider-fallback chain — unlike the previous single-prompt-only
+        version, which also bypassed fallback entirely."""
+        settings = get_ai_settings()
+        plain_messages: list[dict[str, Any]] = []
+        if system_prompt:
+            plain_messages.append({"role": "system", "content": system_prompt})
+        for msg in messages:
+            plain_messages.append({"role": msg.role, "content": msg.content})
+
+        stream_kwargs = {
+            "model": model or self._config.default_model,
+            "temperature": temperature if temperature is not None else settings.temperature_default,
+            "max_tokens": max_tokens or settings.max_tokens_default,
+        }
+
+        chain = _PROVIDER_FALLBACK_CHAIN[:]
+        preferred = self._config.default_provider
+        if preferred in chain:
+            chain.remove(preferred)
+        chain.insert(0, preferred)
+
+        last_exc: Exception | None = None
+        for name in chain:
+            try:
+                p = create_provider(name)
+                chunk_iter = p.generate_stream(plain_messages, **stream_kwargs).__aiter__()
+                try:
+                    first_chunk = await chunk_iter.__anext__()
+                except StopAsyncIteration:
+                    first_chunk = None
+
+                if name != self._config.default_provider:
+                    logger.info("ai_gateway_fallback_succeeded", provider=name, operation="stream")
+                if self._active_provider_name != name:
+                    self._provider = p
+                    self._active_provider_name = name
+
+                if first_chunk is not None:
+                    yield first_chunk
+                    async for chunk in chunk_iter:
+                        yield chunk
+                return
+            except (AIProviderAuthError, AIProviderRateLimitError) as exc:
+                logger.warning(
+                    "ai_gateway_provider_failed_trying_fallback",
+                    provider=name,
+                    operation="stream",
+                    error=str(exc),
+                )
+                last_exc = exc
+                continue
+            except Exception as exc:
+                logger.warning("ai_gateway_provider_error", provider=name, operation="stream", error=str(exc))
+                last_exc = exc
+                continue
+
+        if last_exc:
+            raise last_exc
+        raise AIProviderError(context={"detail": "All providers in fallback chain failed"})
 
 
 _gateway: AIGateway | None = None

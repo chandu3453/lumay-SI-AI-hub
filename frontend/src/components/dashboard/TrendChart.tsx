@@ -1,18 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
-const MOCK_DATA = [
-  { date: "May 10", value: 2100 },
-  { date: "May 11", value: 2500 },
-  { date: "May 12", value: 2400 },
-  { date: "May 13", value: 3200 },
-  { date: "May 14", value: 2950 },
-  { date: "May 15", value: 3300 },
-  { date: "May 16", value: 2800 },
-];
+import { useAnalyticsTrends } from "@/features/analytics/use-analytics";
 
 export function TrendChart() {
   const [activeTab, setActiveTab] = useState<"this" | "last">("this");
+  const { data: trends } = useAnalyticsTrends("daily");
+
+  const chartData = useMemo(() => {
+    const daily = trends?.daily ?? [];
+    const window = activeTab === "this" ? daily.slice(-7) : daily.slice(-14, -7);
+    return window.map((d: { date: string; total: number }) => ({
+      date: new Date(d.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      value: d.total,
+    }));
+  }, [trends, activeTab]);
 
   return (
     <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm flex flex-col h-96">
@@ -46,7 +48,7 @@ export function TrendChart() {
       {/* Chart container */}
       <div className="flex-1 min-h-0 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={MOCK_DATA} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="complaintTrendGlow" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#2563EB" stopOpacity={0.15} />
@@ -67,8 +69,8 @@ export function TrendChart() {
               tickLine={false}
               dx={-5}
               tickFormatter={(v) => (v >= 1000 ? `${v / 1000}K` : v)}
-              domain={[0, 4000]}
-              ticks={[0, 1000, 2000, 3000, 4000]}
+              allowDecimals={false}
+              domain={[0, "auto"]}
             />
             <Tooltip
               contentStyle={{

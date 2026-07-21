@@ -157,18 +157,45 @@ class TranscriptManager:
                     history = json.loads(interaction.transcript)
                 except (json.JSONDecodeError, TypeError):
                     history = []
-            for seg in session.get("transcript_segments", []):
-                if not seg.get("is_partial", False):
-                    role = "user" if seg["role"] == "customer" else "assistant"
-                    history.append({
-                        "role": role,
-                        "content": seg["text"],
-                        "timestamp": seg["timestamp"],
-                    })
-            await interaction_service.update_interaction(
-                interaction_id,
-                InteractionUpdate(transcript=json.dumps(history)),
+            from domains.conversation import integration_hooks as conversation_hooks
+            from domains.conversation.constants.conversation_constants import (
+                ConversationMessageType,
             )
+
+            # Each turn is already persisted to Interaction.transcript live,
+            # per-turn, by conversation_engine._finalize_turn (the same
+            # mechanism text chat uses) as long as the pipeline's own DB
+            # session commits at call end (see voice/router.py's
+            # _run_pipeline_isolated). This end-of-call flush exists only as
+            # a safety net for the rare case that commit never ran (crash,
+            # kill, cross-process TranscriptManager). Slicing to segments
+            # beyond len(history) keeps it a no-op in the normal case instead
+            # of duplicating every message on top of what's already there.
+            finalized = [
+                seg for seg in session.get("transcript_segments", [])
+                if not seg.get("is_partial", False)
+            ]
+            new_segments = finalized[len(history):]
+            for seg in new_segments:
+                role = "user" if seg["role"] == "customer" else "assistant"
+                history.append({
+                    "role": role,
+                    "content": seg["text"],
+                    "timestamp": seg["timestamp"],
+                })
+                await conversation_hooks.on_message(
+                    interaction_service._repository._session,
+                    interaction_id,
+                    role,
+                    "voice",
+                    seg["text"],
+                    message_type=ConversationMessageType.TRANSCRIPT,
+                )
+            if new_segments:
+                await interaction_service.update_interaction(
+                    interaction_id,
+                    InteractionUpdate(transcript=json.dumps(history)),
+                )
         except Exception as exc:
             logger.error(
                 "transcript_append_failed",

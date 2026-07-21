@@ -85,6 +85,20 @@ class SessionManager:
                 interaction_create
             )
             interaction_id = str(interaction.id)
+
+            from domains.conversation import integration_hooks as conversation_hooks
+
+            conversation_id = await conversation_hooks.on_interaction_started(
+                self._interaction_service._repository._session,
+                customer_ref,
+                "voice",
+                interaction.id,
+            )
+            await conversation_hooks.on_voice_session_started(
+                self._interaction_service._repository._session,
+                conversation_id,
+                actual_room,
+            )
         except Exception as exc:
             logger.warning("session_interaction_create_failed", error=str(exc))
             interaction_id = str(uuid.uuid4())
@@ -117,6 +131,12 @@ class SessionManager:
         session = tm.get_session(session_id)
 
         if session:
+            # Marks status="ended" and stamps ended_at — needed so the
+            # voice.session_ended conversation event below can compute a
+            # duration. (This was previously never called at all: session
+            # dicts carried a started_at but no ended_at ever got set.)
+            await tm.end_session(session_id)
+
             if self._interaction_service:
                 from domains.interaction.constants.interaction_constants import (
                     InteractionStatus,
@@ -131,6 +151,16 @@ class SessionManager:
                     await self._interaction_service.update_interaction(
                         uuid.UUID(session["interaction_id"]),
                         InteractionUpdate(status=InteractionStatus.COMPLETED),
+                    )
+
+                    from domains.conversation import integration_hooks as conversation_hooks
+
+                    await conversation_hooks.on_voice_session_ended(
+                        self._interaction_service._repository._session,
+                        session["interaction_id"],
+                        session.get("started_at"),
+                        session.get("ended_at"),
+                        room_name=session.get("room_name"),
                     )
                 except Exception as exc:
                     logger.warning(

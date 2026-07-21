@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.dependencies.auth import CurrentUser, get_current_user
+from app.dependencies.auth import CurrentUser, get_current_active_user, get_current_user
 from app.dependencies.workflow import get_workflow_service
 from domains.workflow.constants.workflow_constants import (
     EscalationLevel,
@@ -41,7 +41,7 @@ logger = get_logger(__name__)
 async def create_workflow(
     body: WorkflowCreate,
     service: WorkflowService = Depends(get_workflow_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[WorkflowResponse]:
     workflow, _ = await service.create_workflow(body)
     return SuccessResponse(data=WorkflowResponse.model_validate(workflow))
@@ -119,9 +119,16 @@ async def update_workflow(
     workflow_id: uuid.UUID,
     body: WorkflowUpdate,
     service: WorkflowService = Depends(get_workflow_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[WorkflowResponse]:
     workflow, _ = await service.update_workflow(workflow_id, body)
+
+    from domains.conversation.integration_hooks import on_workflow_lifecycle
+
+    # WorkflowService.update_workflow returns no DomainEvent today — the hook
+    # still fires with a synthetic event_type so the timeline doesn't drop it.
+    await on_workflow_lifecycle(service._repository._session, workflow, "workflow.updated")
+
     return SuccessResponse(data=WorkflowResponse.model_validate(workflow))
 
 
@@ -135,7 +142,7 @@ async def assign_workflow(
     workflow_id: uuid.UUID,
     body: WorkflowAssignRequest,
     service: WorkflowService = Depends(get_workflow_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[WorkflowResponse]:
     workflow, _ = await service.assign_workflow(
         workflow_id,
@@ -143,6 +150,17 @@ async def assign_workflow(
         team=body.team,
         queue=body.queue,
     )
+
+    from domains.conversation.integration_hooks import on_workflow_lifecycle
+
+    await on_workflow_lifecycle(
+        service._repository._session,
+        workflow,
+        "workflow.assigned",
+        {"assigned_team": body.team, "queue": body.queue},
+        assigned_agent_id=body.agent_id,
+    )
+
     return SuccessResponse(data=WorkflowResponse.model_validate(workflow))
 
 
@@ -156,7 +174,7 @@ async def transfer_workflow(
     workflow_id: uuid.UUID,
     body: WorkflowTransferRequest,
     service: WorkflowService = Depends(get_workflow_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[WorkflowResponse]:
     workflow, _ = await service.transfer_workflow(
         workflow_id,
@@ -164,6 +182,20 @@ async def transfer_workflow(
         team=body.team,
         queue=body.queue,
     )
+
+    from domains.conversation.integration_hooks import on_workflow_lifecycle
+
+    # transfer_workflow reuses WorkflowAssigned (no dedicated event class) —
+    # the hook uses its own "workflow.transferred" string so the timeline can
+    # still tell assignment and transfer apart.
+    await on_workflow_lifecycle(
+        service._repository._session,
+        workflow,
+        "workflow.transferred",
+        {"assigned_team": body.team, "queue": body.queue},
+        assigned_agent_id=body.agent_id,
+    )
+
     return SuccessResponse(data=WorkflowResponse.model_validate(workflow))
 
 
@@ -177,11 +209,21 @@ async def escalate_workflow(
     workflow_id: uuid.UUID,
     body: WorkflowEscalateRequest | None = None,
     service: WorkflowService = Depends(get_workflow_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[WorkflowResponse]:
     workflow, _ = await service.escalate_workflow(
         workflow_id, reason=body.reason if body else ""
     )
+
+    from domains.conversation.integration_hooks import on_workflow_lifecycle
+
+    await on_workflow_lifecycle(
+        service._repository._session,
+        workflow,
+        "workflow.escalated",
+        {"reason": body.reason if body else "", "escalation_level": str(workflow.escalation_level)},
+    )
+
     return SuccessResponse(data=WorkflowResponse.model_validate(workflow))
 
 
@@ -195,11 +237,16 @@ async def approve_workflow(
     workflow_id: uuid.UUID,
     body: WorkflowApproveRequest,
     service: WorkflowService = Depends(get_workflow_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[WorkflowResponse]:
     workflow, _ = await service.approve_workflow(
         workflow_id, approved_by=body.approved_by
     )
+
+    from domains.conversation.integration_hooks import on_workflow_lifecycle
+
+    await on_workflow_lifecycle(service._repository._session, workflow, "workflow.approved")
+
     return SuccessResponse(data=WorkflowResponse.model_validate(workflow))
 
 
@@ -213,11 +260,18 @@ async def reject_workflow(
     workflow_id: uuid.UUID,
     body: WorkflowRejectRequest,
     service: WorkflowService = Depends(get_workflow_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[WorkflowResponse]:
     workflow, _ = await service.reject_workflow(
         workflow_id, rejected_by=body.rejected_by, reason=body.reason
     )
+
+    from domains.conversation.integration_hooks import on_workflow_lifecycle
+
+    await on_workflow_lifecycle(
+        service._repository._session, workflow, "workflow.rejected", {"reason": body.reason}
+    )
+
     return SuccessResponse(data=WorkflowResponse.model_validate(workflow))
 
 
@@ -230,9 +284,14 @@ async def reject_workflow(
 async def complete_workflow(
     workflow_id: uuid.UUID,
     service: WorkflowService = Depends(get_workflow_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[WorkflowResponse]:
     workflow, _ = await service.complete_workflow(workflow_id)
+
+    from domains.conversation.integration_hooks import on_workflow_lifecycle
+
+    await on_workflow_lifecycle(service._repository._session, workflow, "workflow.completed")
+
     return SuccessResponse(data=WorkflowResponse.model_validate(workflow))
 
 
@@ -245,7 +304,12 @@ async def complete_workflow(
 async def archive_workflow(
     workflow_id: uuid.UUID,
     service: WorkflowService = Depends(get_workflow_service),
-    _current_user: CurrentUser | None = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_active_user),
 ) -> SuccessResponse[WorkflowResponse]:
     workflow, _ = await service.archive_workflow(workflow_id)
+
+    from domains.conversation.integration_hooks import on_workflow_lifecycle
+
+    await on_workflow_lifecycle(service._repository._session, workflow, "workflow.archived")
+
     return SuccessResponse(data=WorkflowResponse.model_validate(workflow))

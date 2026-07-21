@@ -123,6 +123,9 @@ def _register_domain_routers(app: FastAPI) -> None:
         ("domains.customer.routers", "customer_router"),
         ("domains.complaint.routers", "complaint_router"),
         ("domains.interaction.routers", "interaction_router"),
+        ("domains.conversation.routers", "conversation_router"),
+        ("domains.agent_assist.routers", "agent_assist_router"),
+        ("domains.reporting.routers", "reporting_router"),
         ("domains.workflow.routers", "workflow_router"),
         ("domains.notification.routers", "notification_router"),
         ("domains.analytics.routers", "analytics_router"),
@@ -140,8 +143,15 @@ def _register_domain_routers(app: FastAPI) -> None:
             router = getattr(module, router_name)
             app.include_router(router, prefix="/api/v1")
             logger.debug("domain_router_registered", module=module_path, router=router_name)
-        except (ImportError, AttributeError):
-            logger.debug("domain_router_unavailable", module=module_path)
+        except (ImportError, AttributeError) as exc:
+            # A domain router failing to import means every one of its
+            # endpoints silently 404s — this used to log at debug level
+            # (Sprint 30: found this way, after sse-starlette was missing
+            # from the built image and the entire Conversation domain had
+            # been unreachable in the deployed container with no signal).
+            logger.error(
+                "domain_router_unavailable", module=module_path, router=router_name, error=str(exc), exc_info=True
+            )
 
 
 app: FastAPI = create_app()

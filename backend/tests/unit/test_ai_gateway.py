@@ -126,3 +126,29 @@ class TestAIGateway:
         self.gateway._config = AIGatewayConfig(default_provider="nonexistent")
         response = await self.gateway.process(request)
         assert response.success is False
+
+    async def test_stream_yields_chunks(self) -> None:
+        messages = [ChatMessage(role="user", content="Hello")]
+        chunks = [c async for c in self.gateway.stream(messages=messages)]
+        assert len(chunks) > 0
+        assert all(isinstance(c, str) for c in chunks)
+        assert "".join(chunks).strip()
+
+    async def test_stream_with_system_prompt_and_history(self) -> None:
+        messages = [
+            ChatMessage(role="user", content="What is my policy number?"),
+            ChatMessage(role="assistant", content="Let me check."),
+            ChatMessage(role="user", content="claims"),
+        ]
+        chunks = [
+            c async for c in self.gateway.stream(
+                messages=messages, system_prompt="You are helpful", temperature=0.2, max_tokens=100,
+            )
+        ]
+        assert len(chunks) > 0
+
+    async def test_stream_updates_active_provider_name(self) -> None:
+        messages = [ChatMessage(role="user", content="Hello")]
+        async for _ in self.gateway.stream(messages=messages):
+            pass
+        assert self.gateway.active_provider_name == "local"

@@ -185,18 +185,27 @@ async def _run_pipeline_isolated(
                 repo_notification,
                 workflow_repository=repo_workflow,
             )
-            await VoiceRuntime.start_pipeline(
-                session_id=session_id,
-                room_name=room_name,
-                agent_token=agent_token,
-                interaction_id=interaction_id,
-                stt_provider=None,
-                tts_provider=None,
-                interaction_service=interaction_service,
-                complaint_service=complaint_service,
-                workflow_service=workflow_service,
-                notification_service=notification_service,
-            )
+            try:
+                await VoiceRuntime.start_pipeline(
+                    session_id=session_id,
+                    room_name=room_name,
+                    agent_token=agent_token,
+                    interaction_id=interaction_id,
+                    stt_provider=None,
+                    tts_provider=None,
+                    interaction_service=interaction_service,
+                    complaint_service=complaint_service,
+                    workflow_service=workflow_service,
+                    notification_service=notification_service,
+                )
+            finally:
+                # This session is held open for the whole call (every turn's
+                # transcript/complaint write only flushes, per
+                # InteractionRepository/ComplaintRepository) — without this,
+                # everything is silently rolled back when the `async with
+                # factory()` block below closes, and the voice transcript
+                # never reaches Postgres regardless of how the call ended.
+                await db.commit()
     except Exception:
         logger = get_logger(__name__)
         logger.exception("pipeline_background_failed", session_id=session_id)

@@ -64,20 +64,23 @@ identify==2.6.19
 idna==3.18
 importlib_metadata==8.5.0
 iniconfig==2.3.0
-instructor==1.7.0
+# instructor==1.7.0 is installed separately in the Dockerfile with --no-deps
+# (Sprint 30 — its declared `jiter<0.7` metadata conflicts with
+# openai==2.45.0's own jiter requirement in a single `pip install -r`
+# resolve, even though these exact pinned versions are proven to work
+# together at runtime — this had been silently breaking every backend
+# image build, leaving several transitive deps, incl. sse-starlette,
+# uninstalled and the whole Conversation domain router unreachable).
 Jinja2==3.1.6
 jiter==0.16.0
 joblib==1.5.3
 jsonpatch==1.33
 jsonpointer==3.1.1
-langchain==0.3.9
-langchain-core==0.3.63
-langchain-openai==0.2.10
-langchain-text-splitters==0.3.8
-langgraph==0.2.55
-langgraph-checkpoint==2.1.2
-langgraph-sdk==0.1.74
-langsmith==0.1.147
+# langchain/langgraph/langsmith removed (Sprint 30) — confirmed zero
+# imports anywhere in this codebase (grep for "import langchain"/"langgraph"
+# found nothing), yet langchain-openai==0.2.10 pins openai<2.0.0 which
+# directly conflicts with the openai==2.45.0 this app's real AI gateway
+# actually needs, breaking every from-scratch image build.
 livekit==1.1.13
 livekit-api==1.2.0
 livekit-protocol==1.1.19
@@ -101,6 +104,7 @@ numba==0.66.0
 numpy==2.4.6
 onnxruntime==1.24.4
 openai==2.45.0
+openpyxl==3.1.5
 opensearch-py==2.7.1
 opentelemetry-api==1.28.2
 opentelemetry-exporter-otlp==1.28.2

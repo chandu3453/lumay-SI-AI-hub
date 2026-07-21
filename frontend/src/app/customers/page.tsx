@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ShieldOff } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { AICopilot } from "@/features/ai-copilot/ai-copilot";
 import { useCustomerList, useCustomerKPIs, useCustomerProfile, useCustomerComplaints, useCustomerInteractions, useCustomerComplaintTrend, useCustomerComplaintThemes } from "@/features/customers/hooks/use-customers";
@@ -195,37 +196,9 @@ function CustomersContent() {
               )}
 
               {profileTab === "policies" && (
-                <div className="bg-white dark:bg-card rounded-xl border border-border shadow-card p-5">
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold text-[#0F172A]">Insurance Products & Policies</h3>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-white rounded-xl border border-border shadow-card p-4">
-                        <div className="h-8 w-8 rounded-lg bg-[#EFF6FF] flex items-center justify-center mb-2">
-                          <span className="text-xs font-bold text-[#2563EB]">M</span>
-                        </div>
-                        <p className="text-sm font-medium text-[#0F172A]">Motor Comprehensive</p>
-                        <p className="text-xs font-mono text-muted-foreground mt-1">POL-2025-001245</p>
-                        <p className="text-xs text-[#16A34A] mt-1 font-medium">Active</p>
-                      </div>
-                      <div className="bg-white rounded-xl border border-border shadow-card p-4">
-                        <div className="h-8 w-8 rounded-lg bg-[#F0FDF4] flex items-center justify-center mb-2">
-                          <span className="text-xs font-bold text-[#16A34A]">H</span>
-                        </div>
-                        <p className="text-sm font-medium text-[#0F172A]">Health Gold</p>
-                        <p className="text-xs font-mono text-muted-foreground mt-1">POL-2025-002389</p>
-                        <p className="text-xs text-[#16A34A] mt-1 font-medium">Active</p>
-                      </div>
-                      <div className="bg-white rounded-xl border border-border shadow-card p-4">
-                        <div className="h-8 w-8 rounded-lg bg-[#F5F3FF] flex items-center justify-center mb-2">
-                          <span className="text-xs font-bold text-[#8B5CF6]">T</span>
-                        </div>
-                        <p className="text-sm font-medium text-[#0F172A]">Travel Premium</p>
-                        <p className="text-xs font-mono text-muted-foreground mt-1">POL-2025-003567</p>
-                        <p className="text-xs text-[#F59E0B] mt-1 font-medium">Expiring Soon</p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Customer has 3 active policies across Motor, Health, and Travel insurance lines.</p>
-                  </div>
+                <div className="bg-white dark:bg-card rounded-xl border border-border shadow-card p-10 text-center">
+                  <ShieldOff className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Policy data is not yet available — no backing data source integrated in this phase.</p>
                 </div>
               )}
 

@@ -127,7 +127,10 @@ services:
     networks:
       - lumay_network
     healthcheck:
-      test: ["CMD-SHELL", "curl -sk https://localhost:9200 -u admin:${OPENSEARCH_PASSWORD:-Lumay@Dev2024!} | grep -q '\"status' || exit 1"]
+      # The root `/` response has no "status" field (that's under
+      # /_cluster/health) — the old check greped for a key that never
+      # appears and had never once passed (checked via `docker inspect`).
+      test: ["CMD-SHELL", "curl -sk https://localhost:9200/_cluster/health -u admin:${OPENSEARCH_PASSWORD:-Lumay@Dev2024!} | grep -q '\"status\":\"\\(green\\|yellow\\)\"' || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 10
@@ -191,6 +194,10 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
@@ -220,7 +227,14 @@ services:
     networks:
       - lumay_network
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     logging: *default-logging
 
   # ---- Nginx (Reverse Proxy) ----
@@ -241,7 +255,7 @@ services:
       backend:
         condition: service_healthy
       frontend:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s

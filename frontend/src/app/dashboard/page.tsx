@@ -82,50 +82,31 @@ export default function DashboardPage() {
             icon={<FileText className="h-5 w-5 text-[#0052FF]" />}
             iconBg="bg-blue-50 border-blue-100"
             label="Total Complaints"
-            value={kpis ? fmt(kpis.total_complaints ?? 2568) : "2,568"}
-            trend={18.4}
-            trendUp={true}
-            trendColor="green"
-            trendSuffix="vs last 7 days"
+            value={kpisLoading ? "—" : fmt(kpis?.total_complaints ?? 0)}
           />
           <KPICard
             icon={<AlertTriangle className="h-5 w-5 text-red-600" />}
             iconBg="bg-red-50 border-red-100"
             label="High Risk"
-            value={kpis ? fmt(kpis.critical_complaints ?? 128) : "128"}
-            trend={12.3}
-            trendUp={true}
-            trendColor="red"
-            trendSuffix="vs last 7 days"
+            value={kpisLoading ? "—" : fmt(kpis?.critical_complaints ?? 0)}
           />
           <KPICard
             icon={<Clock className="h-5 w-5 text-amber-600" />}
             iconBg="bg-amber-50 border-amber-100"
             label="SLA at Risk"
-            value={kpis ? fmt(kpis.sla_at_risk ?? 96) : "96"}
-            trend={8.7}
-            trendUp={true}
-            trendColor="orange"
-            trendSuffix="vs last 7 days"
+            value={kpisLoading ? "—" : fmt(kpis?.sla_at_risk ?? 0)}
           />
           <KPICard
             icon={<Gauge className="h-5 w-5 text-green-600" />}
             iconBg="bg-green-50 border-green-100"
             label="Avg. Resolution Time"
-            value={kpis ? `${kpis.avg_resolution_time_days ?? 3.6} Days` : "3.6 Days"}
-            trend={5.2}
-            trendUp={false}
-            trendColor="green"
-            trendSuffix="vs last 7 days"
+            value={kpisLoading || kpis?.avg_resolution_time_days == null ? "—" : `${kpis.avg_resolution_time_days} Days`}
           />
           <KPICard
             icon={<FolderClosed className="h-5 w-5 text-purple-600" />}
             iconBg="bg-purple-50 border-purple-100"
             label="Open Complaints"
-            value={kpis ? fmt(kpis.open_complaints ?? 1543) : "1,543"}
-            trend={0}
-            trendColor="gray"
-            trendSuffix="no change"
+            value={kpisLoading ? "—" : fmt(kpis?.open_complaints ?? 0)}
           />
         </div>
 

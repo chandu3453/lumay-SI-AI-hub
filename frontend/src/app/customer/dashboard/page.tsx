@@ -60,7 +60,7 @@ export default function CustomerDashboardPage() {
     setRaiseError("");
     setRaiseResult(null);
     try {
-      const startRes = await api.post("/interactions/conversations/start", { customer_ref: session?.email || "cust-102", channel: raiseChannel });
+      const startRes = await api.post("/interactions/conversations/start", { customer_ref: session?.email, channel: raiseChannel });
       const intId = startRes.data?.data?.id;
       if (!intId) { throw new Error("Failed to start conversation"); }
       const msgRes = await api.post("/interactions/conversations/message", { interaction_id: intId, message: raiseMessage });

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/cn";
-import { Folder, Clock, AlertTriangle, Gauge, CheckCircle2, TrendingUp } from "lucide-react";
+import { Folder, Clock, AlertTriangle, Gauge, CheckCircle2 } from "lucide-react";
 
 type KPI = {
   key: string;
@@ -15,56 +15,50 @@ type ComplaintCaseKPIsProps = {
   totalCases: number;
   inProgress: number;
   overdue: number;
-  avgResolutionTime: number;
+  avgResolutionTime: number | null;
   resolvedThisMonth: number;
 };
 
 export function ComplaintCaseKPIs({ totalCases, inProgress, overdue, avgResolutionTime, resolvedThisMonth }: ComplaintCaseKPIsProps) {
-  // Use mockup data as values for the CEO-approved display if not present
+  // Real props only — no trend percentages, since no historical-comparison
+  // data is available at this scope (a fabricated "14.8% vs last 30 days"
+  // is worse than omitting the trend line entirely).
   const cards: KPI[] = [
     {
       key: "total",
       label: "Total Cases",
-      value: totalCases ? totalCases.toLocaleString() : "2,456",
+      value: totalCases.toLocaleString(),
       icon: <Folder className="h-5 w-5 text-blue-600" />,
       iconBg: "bg-blue-50 border border-blue-100",
-      trend: "14.8% vs last 30 days",
-      trendIcon: <TrendingUp className="h-3.5 w-3.5 text-[#10B981] mr-1 inline" />,
     },
     {
       key: "in_progress",
       label: "In Progress",
-      value: inProgress ? inProgress.toLocaleString() : "876",
+      value: inProgress.toLocaleString(),
       icon: <Clock className="h-5 w-5 text-amber-600" />,
       iconBg: "bg-amber-50 border border-amber-100",
-      trend: `${totalCases ? Math.round((inProgress / totalCases) * 100) : 35.7}% of total`,
+      trend: totalCases ? `${Math.round((inProgress / totalCases) * 100)}% of total` : undefined,
     },
     {
       key: "overdue",
       label: "Overdue",
-      value: overdue ? overdue.toLocaleString() : "142",
+      value: overdue.toLocaleString(),
       icon: <AlertTriangle className="h-5 w-5 text-red-600" />,
       iconBg: "bg-red-50 border border-red-100",
-      trend: "8.6% vs last 30 days",
-      trendIcon: <TrendingUp className="h-3.5 w-3.5 text-[#EF4444] mr-1 inline" />,
     },
     {
       key: "avg_time",
       label: "Avg. Resolution Time",
-      value: `${avgResolutionTime || 3.6} Days`,
+      value: avgResolutionTime != null ? `${avgResolutionTime} Days` : "—",
       icon: <Gauge className="h-5 w-5 text-purple-600" />,
       iconBg: "bg-purple-50 border border-purple-100",
-      trend: "6.2% vs last 30 days",
-      trendIcon: <TrendingUp className="h-3.5 w-3.5 text-[#10B981] mr-1 inline" />,
     },
     {
       key: "resolved",
       label: "Resolved (This Month)",
-      value: resolvedThisMonth ? resolvedThisMonth.toLocaleString() : "642",
+      value: resolvedThisMonth.toLocaleString(),
       icon: <CheckCircle2 className="h-5 w-5 text-green-600" />,
       iconBg: "bg-green-50 border border-green-100",
-      trend: "18.3% vs last 30 days",
-      trendIcon: <TrendingUp className="h-3.5 w-3.5 text-[#10B981] mr-1 inline" />,
     },
   ];
 

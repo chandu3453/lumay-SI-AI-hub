@@ -4,31 +4,19 @@ import { useState, useCallback, useMemo, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { AICopilot } from "@/features/ai-copilot/ai-copilot";
-import { useComplaintCases, useComplaintCaseKPIs, useComplaintCaseTabCounts } from "@/features/complaint-cases/use-complaint-cases";
+import { useComplaintCases, useComplaintCaseKPIs, useComplaintCaseTabCounts, tabToComplaintFilter } from "@/features/complaint-cases/use-complaint-cases";
 import { useDebounce } from "@/hooks/use-debounce";
 import { ComplaintCaseHeader, ComplaintCaseTabs, ComplaintCaseFilters, ComplaintCaseKPIs, ComplaintCaseTable, ComplaintCaseToolbar } from "@/components/complaint-cases";
 import { InsuranceFilter } from "@/components/insurance/InsuranceFilter";
 import { InsuranceBadge } from "@/components/insurance/InsuranceBadge";
 import type { CaseTabId } from "@/components/complaint-cases";
-import type { CaseItem } from "@/features/complaint-cases/use-complaint-cases";
 import { SlidersHorizontal, Download, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const PAGE_SIZE = 10;
 
-function getTabFilter(tab: CaseTabId): { status?: string } {
-  switch (tab) {
-    case "all": return {};
-    case "new": return { status: "new,submitted" };
-    case "acknowledged": return { status: "acknowledged" };
-    case "in_progress": return { status: "in_progress,investigating" };
-    case "pending_review": return { status: "pending_review" };
-    case "resolved": return { status: "resolved" };
-    case "closed": return { status: "closed,archived" };
-    case "escalated": return { status: "escalated" };
-    case "overdue": return {};
-    default: return {};
-  }
+function getTabFilter(tab: CaseTabId): { status?: string; sla_risk?: string } {
+  return tabToComplaintFilter(tab);
 }
 
 function CasesContent() {
@@ -75,9 +63,9 @@ function CasesContent() {
 
   const tabFilter = getTabFilter(activeTab);
   const { data, isLoading } = useComplaintCases({
-    page, page_size: PAGE_SIZE, search: debouncedSearch || undefined,
+    page, page_size: PAGE_SIZE,
     channel: channel || undefined, theme: theme || undefined, severity: severity || undefined,
-    sla_status: slaStatus || undefined, assigned_to: assignedTo || undefined,
+    sla_risk: slaStatus || undefined,
     ...tabFilter,
   });
   const { data: kpis } = useComplaintCaseKPIs();
@@ -89,12 +77,12 @@ function CasesContent() {
   const handleExport = useCallback(() => {
     const items = data?.items ?? [];
     if (items.length === 0) return;
-    const headers = ["Case ID", "Customer", "Channel", "Theme", "Severity", "SLA Status", "Assigned To", "Status", "Received Time"];
-    const csv = [headers.join(","), ...items.map((item: any) => [
-      item.case_number ?? item.workflow_number ?? item.id,
-      item.customer_name ?? "Unknown", item.channel ?? "", item.theme ?? "", item.severity,
-      item.sla_status, item.assigned_agent_name ?? "", item.workflow_status,
-      item.received_time ?? item.created_at ?? "",
+    const headers = ["Case ID", "Category", "Channel", "Theme", "Severity", "SLA Risk", "Queue", "Status", "Created"];
+    const csv = [headers.join(","), ...items.map((item) => [
+      item.case_number ?? item.id,
+      item.category, item.channel ?? "", item.theme ?? "", item.severity,
+      item.sla_risk ?? "", item.assigned_queue ?? "", item.status,
+      item.created_at,
     ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -139,14 +127,17 @@ function CasesContent() {
       />
 
       <ComplaintCaseKPIs
-        totalCases={kpis?.total_cases ?? 2456}
-        inProgress={kpis?.in_progress ?? 876}
-        overdue={kpis?.overdue ?? 142}
-        avgResolutionTime={kpis?.avg_resolution_time ?? 3.6}
-        resolvedThisMonth={kpis?.resolved_this_month ?? 642}
+        totalCases={kpis?.total_cases ?? 0}
+        inProgress={kpis?.in_progress ?? 0}
+        overdue={kpis?.overdue ?? 0}
+        avgResolutionTime={kpis?.avg_resolution_time ?? null}
+        resolvedThisMonth={kpis?.resolved_this_month ?? 0}
       />
 
       <ComplaintCaseTable
+        data={data?.items}
+        total={data?.total ?? 0}
+        pageSize={PAGE_SIZE}
         isLoading={isLoading}
         page={page}
         onPageChange={setPage}

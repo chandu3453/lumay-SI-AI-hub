@@ -152,31 +152,39 @@ def get_message_history(interaction) -> list[dict]:
             "timestamp": interaction.created_at.isoformat() if interaction.created_at else datetime.now(timezone.utc).isoformat()
         }]
 
-async def process_conversation(
+def _not_found_response() -> dict:
+    return {
+        "answer": "I apologise, but I am unable to process your message right now.",
+        "messages": [],
+        "ai_analysis": {},
+        "context_used": False,
+        "auto_triaged": False,
+        "complaint_id": None,
+        "workflow_id": None,
+        "provider_used": "none",
+    }
+
+
+async def _prepare_turn(
     interaction_id: uuid.UUID,
     message: str,
     interaction_service,
     complaint_service,
     workflow_service,
-    notification_service,
-) -> dict:
-    import time
-    logger.info("process_conversation_started", interaction_id=str(interaction_id), message_length=len(message))
+):
+    """Shared setup for a conversation turn: loads/updates history, retrieves
+    customer + knowledge-base context, runs intent-state analysis, and builds
+    the final system prompt + chat message list. Used by both the blocking
+    and streaming response-generation paths so that logic isn't duplicated.
 
-    # 1. Fetch Interaction & Parse Message History
+    Returns None if the interaction can't be found.
+    """
+    import time
+
     interaction = await interaction_service.get_interaction(interaction_id)
     if not interaction:
         logger.error("process_conversation_interaction_not_found", interaction_id=str(interaction_id))
-        return {
-            "answer": "I apologise, but I am unable to process your message right now.",
-            "messages": [],
-            "ai_analysis": {},
-            "context_used": False,
-            "auto_triaged": False,
-            "complaint_id": None,
-            "workflow_id": None,
-            "provider_used": "none",
-        }
+        return None
     history = get_message_history(interaction)
 
     # Append the new user message
@@ -186,6 +194,16 @@ async def process_conversation(
         "content": message,
         "timestamp": now_str
     })
+
+    from domains.conversation import integration_hooks as conversation_hooks
+
+    await conversation_hooks.on_message(
+        interaction_service._repository._session,
+        interaction.id,
+        "user",
+        interaction.channel,
+        message,
+    )
 
     # 2. Retrieve Customer & policy details & previous complaints & workflow history
     customer_repository = complaint_service._customer_repository
@@ -238,15 +256,15 @@ async def process_conversation(
             context_parts.append(f"Policy: {r['title']}\n{r['summary']}")
         elif r["source"] == "product":
             context_parts.append(f"Product: {r['name']}\n{r['description']}")
-    
+
     context_str_knowledge = "\n\n".join(context_parts) if context_parts else ""
     context_used = len(context_parts) > 0
     retrieval_latency = (time.monotonic() - retrieval_start) * 1000
     logger.info("rag_retrieval_latency", latency_ms=retrieval_latency)
 
-    # 4. Formulate System Prompt and Send to AI Gateway
+    # 4. Formulate System Prompt
     ai_gateway = get_ai_gateway()
-    
+
     # Intent detection & state cache lookup
     state = _CONVERSATION_STATES.get(interaction_id, {
         "intent": "Unknown",
@@ -257,7 +275,7 @@ async def process_conversation(
         "clarification_needed": False,
         "escalate_to_human": False
     })
-    
+
     history_json = json.dumps(history)
     analysis_prompt = (
         f"{_INTENT_ANALYZER_PROMPT}\n\n"
@@ -266,7 +284,7 @@ async def process_conversation(
         f"HISTORY:\n{history_json}\n\n"
         f"Respond ONLY with the updated state JSON."
     )
-    
+
     try:
         analysis_response = await ai_gateway.chat(
             messages=[ChatMessage(role="user", content=analysis_prompt)],
@@ -300,7 +318,7 @@ async def process_conversation(
         intent_prompt = "[INTENT: GENERAL/SMALL TALK]\nAnswer the customer query warmly, professionally, and naturally."
 
     system_prompt = _BASE_SYSTEM_PROMPT + "\n" + intent_prompt
-    
+
     # Inject memory and state
     state_context = (
         f"\n\n[CONVERSATION CONTEXT & MEMORY]\n"
@@ -311,10 +329,10 @@ async def process_conversation(
         f"- Customer Preferences: {json.dumps(state.get('customer_preferences', {}))}\n"
     )
     system_prompt += state_context
-    
+
     if state.get("clarification_needed", False):
         system_prompt += "\n- IMPORTANT: The user's input was ambiguous or STT confidence was low. You MUST ask a clarification question (e.g. 'Did you mean motorcycle insurance?').\n"
-        
+
     if state.get("escalate_to_human", False):
         system_prompt += "\n- IMPORTANT: Hand over the call to a human agent professionally (e.g. 'Let me transfer you to a customer care advisor now.').\n"
 
@@ -324,45 +342,53 @@ async def process_conversation(
         system_prompt += f"\n\nRetrieved Knowledge Base Context (LuMay Products):\n{context_str_knowledge}"
 
     chat_messages = [ChatMessage(role=msg["role"], content=msg["content"]) for msg in history]
-    provider_used = "unknown"
-    logger.info(
-        "conversation_engine_calling_ai_gateway",
-        interaction_id=str(interaction_id),
-        message_count=len(chat_messages),
-    )
-    try:
-        llm_start = time.monotonic()
-        ai_response = await ai_gateway.chat(
-            messages=chat_messages,
-            system_prompt=system_prompt,
-        )
-        ai_content = ai_response.message.content
-        provider_used = ai_gateway.active_provider_name
-        llm_latency = (time.monotonic() - llm_start) * 1000
-        logger.info(
-            "conversation_engine_ai_response_received",
-            interaction_id=str(interaction_id),
-            provider=provider_used,
-            latency_ms=llm_latency,
-            response_length=len(ai_content),
-        )
-        logger.info("llm_generation_latency", latency_ms=llm_latency)
-    except Exception as exc:
-        logger.error("conversation_engine_ai_gateway_failed", error=str(exc))
-        ai_content = (
-            "I apologise, but I am experiencing a temporary technical issue. "
-            "Your message has been recorded and a member of our team will follow up with you shortly. "
-            "For urgent matters, please call 800-LUMAY-1."
-        )
-        provider_used = "fallback"
 
-    # Append assistant response to history and save
+    return {
+        "interaction": interaction,
+        "history": history,
+        "chat_messages": chat_messages,
+        "system_prompt": system_prompt,
+        "context_used": context_used,
+        "knowledge_service": knowledge_service,
+        "ai_gateway": ai_gateway,
+    }
+
+
+async def _finalize_turn(
+    ctx: dict,
+    message: str,
+    ai_content: str,
+    provider_used: str,
+    interaction_service,
+) -> dict:
+    """Shared post-processing for a conversation turn: persists the assistant
+    response, fires timeline hooks, syncs the SyntheticStore, kicks off
+    background complaint intelligence, and builds the standard response dict.
+    """
+    interaction = ctx["interaction"]
+    history = ctx["history"]
+    context_used = ctx["context_used"]
+    knowledge_service = ctx["knowledge_service"]
+
+    from domains.conversation import integration_hooks as conversation_hooks
+
     history.append({
         "role": "assistant",
         "content": ai_content,
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
     await interaction_service._repository.update(interaction.id, transcript=json.dumps(history))
+
+    await conversation_hooks.on_message(
+        interaction_service._repository._session,
+        interaction.id,
+        "assistant",
+        interaction.channel,
+        ai_content,
+    )
+    await conversation_hooks.publish_ai_typing(
+        interaction_service._repository._session, interaction.id, False
+    )
 
     # Synchronize interaction update in SyntheticStore
     store = get_synthetic_store()
@@ -411,6 +437,143 @@ async def process_conversation(
         "provider_used": provider_used,
     }
 
+
+async def process_conversation(
+    interaction_id: uuid.UUID,
+    message: str,
+    interaction_service,
+    complaint_service,
+    workflow_service,
+    notification_service,
+) -> dict:
+    import time
+    logger.info("process_conversation_started", interaction_id=str(interaction_id), message_length=len(message))
+
+    ctx = await _prepare_turn(interaction_id, message, interaction_service, complaint_service, workflow_service)
+    if ctx is None:
+        return _not_found_response()
+
+    from domains.conversation import integration_hooks as conversation_hooks
+
+    ai_gateway = ctx["ai_gateway"]
+    chat_messages = ctx["chat_messages"]
+    system_prompt = ctx["system_prompt"]
+    provider_used = "unknown"
+    logger.info(
+        "conversation_engine_calling_ai_gateway",
+        interaction_id=str(interaction_id),
+        message_count=len(chat_messages),
+    )
+    await conversation_hooks.publish_ai_typing(
+        interaction_service._repository._session, interaction_id, True
+    )
+    try:
+        llm_start = time.monotonic()
+        ai_response = await ai_gateway.chat(
+            messages=chat_messages,
+            system_prompt=system_prompt,
+        )
+        ai_content = ai_response.message.content
+        provider_used = ai_gateway.active_provider_name
+        llm_latency = (time.monotonic() - llm_start) * 1000
+        logger.info(
+            "conversation_engine_ai_response_received",
+            interaction_id=str(interaction_id),
+            provider=provider_used,
+            latency_ms=llm_latency,
+            response_length=len(ai_content),
+        )
+        logger.info("llm_generation_latency", latency_ms=llm_latency)
+    except Exception as exc:
+        logger.error("conversation_engine_ai_gateway_failed", error=str(exc))
+        ai_content = (
+            "I apologise, but I am experiencing a temporary technical issue. "
+            "Your message has been recorded and a member of our team will follow up with you shortly. "
+            "For urgent matters, please call 800-LUMAY-1."
+        )
+        provider_used = "fallback"
+
+    return await _finalize_turn(ctx, message, ai_content, provider_used, interaction_service)
+
+
+async def process_conversation_stream(
+    interaction_id: uuid.UUID,
+    message: str,
+    interaction_service,
+    complaint_service,
+    workflow_service,
+    notification_service,
+):
+    """Streaming counterpart to process_conversation, for the voice pipeline —
+    yields {"type": "chunk", "text": str} as tokens arrive from the AI
+    gateway so TTS can start speaking the first sentence immediately, then a
+    final {"type": "done", ...} event carrying the same response shape
+    process_conversation returns synchronously (once all post-processing —
+    transcript persistence, timeline hooks, complaint-intelligence kick-off —
+    has run). The blocking process_conversation is untouched and remains the
+    text/webchat code path.
+    """
+    import time
+    logger.info("process_conversation_stream_started", interaction_id=str(interaction_id), message_length=len(message))
+
+    ctx = await _prepare_turn(interaction_id, message, interaction_service, complaint_service, workflow_service)
+    if ctx is None:
+        yield {"type": "done", **_not_found_response()}
+        return
+
+    from domains.conversation import integration_hooks as conversation_hooks
+
+    ai_gateway = ctx["ai_gateway"]
+    chat_messages = ctx["chat_messages"]
+    system_prompt = ctx["system_prompt"]
+    provider_used = "unknown"
+    logger.info(
+        "conversation_engine_calling_ai_gateway_stream",
+        interaction_id=str(interaction_id),
+        message_count=len(chat_messages),
+    )
+    await conversation_hooks.publish_ai_typing(
+        interaction_service._repository._session, interaction_id, True
+    )
+
+    chunks: list[str] = []
+    try:
+        llm_start = time.monotonic()
+        first_chunk_latency: float | None = None
+        async for chunk in ai_gateway.stream(messages=chat_messages, system_prompt=system_prompt):
+            if not chunk:
+                continue
+            if first_chunk_latency is None:
+                first_chunk_latency = (time.monotonic() - llm_start) * 1000
+                logger.info("conversation_engine_stream_ttft_ms", latency_ms=first_chunk_latency)
+            chunks.append(chunk)
+            yield {"type": "chunk", "text": chunk}
+        ai_content = "".join(chunks)
+        if not ai_content:
+            raise RuntimeError("empty streaming response")
+        provider_used = ai_gateway.active_provider_name
+        llm_latency = (time.monotonic() - llm_start) * 1000
+        logger.info(
+            "conversation_engine_ai_response_received",
+            interaction_id=str(interaction_id),
+            provider=provider_used,
+            latency_ms=llm_latency,
+            response_length=len(ai_content),
+        )
+        logger.info("llm_generation_latency", latency_ms=llm_latency)
+    except Exception as exc:
+        logger.error("conversation_engine_ai_gateway_stream_failed", error=str(exc))
+        ai_content = (
+            "I apologise, but I am experiencing a temporary technical issue. "
+            "Your message has been recorded and a member of our team will follow up with you shortly. "
+            "For urgent matters, please call 800-LUMAY-1."
+        )
+        provider_used = "fallback"
+        yield {"type": "chunk", "text": ai_content}
+
+    result = await _finalize_turn(ctx, message, ai_content, provider_used, interaction_service)
+    yield {"type": "done", **result}
+
 async def run_complaint_intelligence_async(
     interaction_id: uuid.UUID,
     message: str,
@@ -438,7 +601,8 @@ async def run_complaint_intelligence_async(
             from domains.notification.schemas.notification_schemas import NotificationCreate
             from domains.notification.constants.notification_constants import NotificationType, NotificationChannel
             from domains.interaction.constants.interaction_constants import InteractionChannel
-            
+            from domains.conversation import integration_hooks as conversation_hooks
+
             interaction_repo = InteractionRepository(session=db)
             interaction_service = InteractionService(repository=interaction_repo)
             
@@ -572,11 +736,13 @@ async def run_complaint_intelligence_async(
                         severity=analysis.severity.severity.lower() or "moderate",
                         status="submitted",
                         source=source_val,
+                        channel=source_val,
                     )
                     complaint, _ = await complaint_service.create_complaint(complaint_create)
                     await db.refresh(complaint)
                     complaint_id = complaint.id
-                    
+                    await conversation_hooks.on_complaint_created(db, interaction.id, complaint)
+
                     assigned_team = category_map.get(category, "compliance")
                     workflow_create = WorkflowCreate(
                         complaint_id=complaint.id,
@@ -586,7 +752,8 @@ async def run_complaint_intelligence_async(
                     )
                     workflow, _ = await workflow_service.create_workflow(workflow_create)
                     workflow_id = workflow.id
-                    
+                    await conversation_hooks.on_workflow_created(db, interaction.id, workflow)
+
                     notification_create = NotificationCreate(
                         workflow_id=workflow.id,
                         complaint_id=complaint.id,
@@ -596,8 +763,9 @@ async def run_complaint_intelligence_async(
                         subject="Complaint Registered",
                         message_body=f"Dear Customer, your complaint has been registered as {complaint.complaint_number} and is being reviewed by our {assigned_team} team.",
                     )
-                    await notification_service.create_notification(notification_create)
-                    
+                    notification = await notification_service.create_notification(notification_create)
+                    await conversation_hooks.on_notification_created(db, interaction.id, notification[0])
+
                     # Sync with SyntheticStore
                     store = get_synthetic_store()
                     complaint_dict = {
@@ -667,5 +835,13 @@ async def run_complaint_intelligence_async(
             
             intel_latency = (time.monotonic() - intel_start) * 1000
             logger.info("bg_complaint_intelligence_latency", latency_ms=intel_latency, is_complaint=is_complaint)
+
+            # This task owns its own session (independent of the request's, which
+            # is long gone by the time this runs) — repository .add() only
+            # flushes, so without an explicit commit here everything created
+            # above (complaint/workflow/notification) is silently rolled back
+            # when the `async with session_factory()` block below closes it.
+            await db.commit()
         except Exception as exc:
+            await db.rollback()
             logger.error("bg_complaint_intel_failed", error=str(exc))
