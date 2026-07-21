@@ -12,6 +12,34 @@ This project hosts the complete AI engine including:
 * **Conversational Intent Engine (Sprint 27)**: A two-pass dialogue state machine that orchestrates sales, renewals, claims, complaints, and general inquiries dynamically.
 * **Complaint Intelligence Pipeline**: Fully async background processing pipeline that extracts themes, sentiment, severity, root causes, and registers workflows & notifications.
 * **Low-Latency Voice Integration**: Real-time voice assistance powered by LiveKit & Deepgram STT, optimized for rapid and natural consultative advisor responses.
+* **AI Agent Assist**: Real-time co-pilot for human agents — suggested responses, live sentiment/context surfacing during active conversations.
+* **Interaction Center**: Unified domain for tracking and managing customer interactions across channels.
+* **Enterprise Analytics & Reporting**: Dedicated analytics and reporting domains for operational and business intelligence dashboards.
+
+---
+
+## Backend Domains
+
+`backend/domains/` — each is an isolated bounded context with its own models, repositories, services, routers, and schemas:
+
+| Domain | Purpose |
+|---|---|
+| `agent_assist` | AI-powered real-time assistance for human agents |
+| `analytics` | Enterprise analytics and metrics |
+| `audit` | Audit trail / activity logging |
+| `complaint` | Complaint intake, triage, and intelligence pipeline |
+| `configuration` | Platform/tenant configuration |
+| `conversation` | Conversational state machine & dialogue engine |
+| `customer` | Customer profile & account data |
+| `identity` | Auth, users, roles & permissions |
+| `interaction` | Cross-channel interaction/session tracking |
+| `knowledge` | Knowledge base / RAG source content |
+| `notification` | Notifications & alerting |
+| `reporting` | Report generation |
+| `search` | Search indexing & retrieval |
+| `workflow` | Workflow orchestration & task routing |
+
+`backend/ai/` hosts the AI engine itself (`orchestrator`, `pipelines`, `providers`, `gateway`, `guardrails`, `memory`, `retrieval`, `embeddings`, `evaluation`, `prompts`) — kept isolated from business domains per the modular-monolith boundary.
 
 ---
 
